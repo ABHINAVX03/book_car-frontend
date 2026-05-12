@@ -12,6 +12,7 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import LocationName from "../components/LocationName";
 import RideMap from "../components/RideMap";
 import SupportPanel from "../components/SupportPanel";
+import { FiCrosshair, FiMapPin } from "react-icons/fi";
 import { formatRideId } from "../utils/formatId";
 import { formatPhoneNumber, toDialablePhoneNumber } from "../utils/phone";
 import { getWalletBalance } from "../utils/wallet";
@@ -67,6 +68,39 @@ const getFallbackEstimatedFare = (pickup, drop) => {
   return Math.max(99, Math.round(baseFare + distanceInKm * perKmFare + bookingFee));
 };
 
+const getCurrentPosition = () =>
+  new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Location is not supported on this device"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 60000,
+    });
+  });
+
+const getShortAddress = async (lat, lng) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+      {
+        signal: controller.signal,
+        headers: { "Accept-Language": "en" },
+      }
+    );
+    const data = await res.json();
+    return data.display_name?.split(",").slice(0, 3).join(", ") || "Current location";
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const normalizeOtpValue = (value = "") => String(value).replace(/\D/g, "");
 
 const areLocationsTooClose = (pickup, drop) =>
@@ -106,6 +140,7 @@ export default function BookRidePage({ toast }) {
   const [farePreviewLoading, setFarePreviewLoading] = useState(false);
   const [findingDriverTimeout, setFindingDriverTimeout] = useState(false);
   const [findingDriverStartTime, setFindingDriverStartTime] = useState(null);
+  const [currentLocationLoading, setCurrentLocationLoading] = useState(false);
   const cancelInFlightRef = useRef(false);
   const fareFallbackNoticeShownRef = useRef(false);
 
@@ -315,6 +350,42 @@ export default function BookRidePage({ toast }) {
   }
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const handleUseCurrentPickup = async () => {
+    setCurrentLocationLoading(true);
+
+    try {
+      const position = await getCurrentPosition();
+      const { latitude, longitude } = position.coords;
+      let address = "Current location";
+
+      try {
+        address = await getShortAddress(latitude, longitude);
+      } catch {
+        address = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      }
+
+      setForm((current) => ({
+        ...current,
+        pickupLocation: {
+          lat: latitude,
+          lng: longitude,
+          address,
+          source: "current-location",
+        },
+      }));
+      toast.success("Pickup set to your current location");
+    } catch (error) {
+      const permissionDenied = error?.code === 1;
+      toast.error(
+        permissionDenied
+          ? "Location permission was blocked. Allow location access or type your pickup."
+          : error?.message || "Could not get your current location"
+      );
+    } finally {
+      setCurrentLocationLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!form.pickupLocation?.lat || !form.dropLocation?.lat) {
@@ -677,6 +748,43 @@ export default function BookRidePage({ toast }) {
                   marginBottom: "1rem",
                 }}
               >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div className="label" style={{ marginBottom: 4 }}>
+                      Pickup
+                    </div>
+                    <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>
+                      Use GPS now, or type another pickup below.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleUseCurrentPickup}
+                    disabled={currentLocationLoading || rebookLoading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 12px",
+                    }}
+                  >
+                    {currentLocationLoading ? (
+                      <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                    ) : (
+                      <FiCrosshair />
+                    )}
+                    Current location
+                  </button>
+                </div>
                 <LocationAutocomplete
                   label="📍 Pickup Location"
                   placeholder="e.g. India Gate, New Delhi"
@@ -686,6 +794,21 @@ export default function BookRidePage({ toast }) {
                   }}
                   isSkeleton={rebookLoading}
                 />
+                {form.pickupLocation?.source === "current-location" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      color: "var(--muted)",
+                      fontSize: "0.78rem",
+                      marginTop: -4,
+                    }}
+                  >
+                    <FiMapPin />
+                    Using your GPS location. Type in pickup to change it.
+                  </div>
+                )}
                 <LocationAutocomplete
                   label="🏁 Drop Location"
                   placeholder="e.g. Connaught Place, New Delhi"
