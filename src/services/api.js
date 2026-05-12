@@ -1,6 +1,6 @@
 import { expireAuth, getStoredToken, isTokenExpired } from "../utils/authToken";
 
-const BASE_URL = 'http://localhost:3000'; // Use Vite dev server proxy for frontend requests
+const BASE_URL = "https://bookkaro-backend-spring-boot-production.up.railway.app"
 
 let refreshPromise = null;
 
