@@ -327,3 +327,11 @@ export const withdrawMoneyFromDriverWallet = (amount) =>
     method: 'POST',
     body: JSON.stringify({ amount }),
   });
+
+export const updateDriverLocation = (longitude, latitude) =>
+  fetchJson(`${BASE_URL}/drivers/updateLocation`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      coordinates: [longitude, latitude]
+    }),
+  });
