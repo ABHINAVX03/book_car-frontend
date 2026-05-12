@@ -78,7 +78,7 @@ export default function SignupPage({ toast }) {
           description: "Complete your driver setup to unlock ride requests and dashboard controls.",
         });
       } else {
-        // Rider — auto login with the returned user and save token if present
+        // Rider auto-login with the returned user and save token if present
         let profileUser = user;
         let roles = profileUser?.user?.roles || profileUser?.roles || ['RIDER'];
 
@@ -242,8 +242,8 @@ export default function SignupPage({ toast }) {
                 marginBottom: '1.5rem',
               }}>
                 {[
-                  { val: 'rider', label: '🧍 Rider', desc: 'Book rides' },
-                  { val: 'driver', label: '🚗 Driver', desc: 'Earn money' },
+                  { val: 'rider', label: 'Rider', desc: 'Book rides' },
+                  { val: 'driver', label: 'Driver', desc: 'Earn money' },
                 ].map(m => (
                   <button
                     type="button"
