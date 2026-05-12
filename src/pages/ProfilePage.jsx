@@ -178,33 +178,20 @@ export default function ProfilePage({ toast }) {
           const normalizedRefreshed = normalizeWallet(refreshedWallet, normalizedCurrent);
           const refreshedBalance = getWalletBalance(normalizedRefreshed);
           const currentBalance = getWalletBalance(normalizedCurrent);
-          const topUpTransaction = {
-            id: `rider_topup_${Date.now()}`,
-            transactionType: 'CREDIT',
-            transactionMethod: 'BANKING',
-            amount,
-            timeStamp: new Date().toISOString(),
-          };
 
           if (refreshedBalance <= currentBalance) {
             return {
               ...normalizedRefreshed,
               balance: currentBalance + amount,
-              transactions: [
-                topUpTransaction,
-                ...(normalizedRefreshed.transactions?.length
-                  ? normalizedRefreshed.transactions
-                  : normalizedCurrent.transactions || []),
-              ],
+              transactions: normalizedRefreshed.transactions?.length
+                ? normalizedRefreshed.transactions
+                : normalizedCurrent.transactions || [],
             };
           }
 
           return {
             ...normalizedRefreshed,
-            transactions: [
-              topUpTransaction,
-              ...(normalizedRefreshed.transactions || []),
-            ],
+            transactions: normalizedRefreshed.transactions || normalizedCurrent.transactions || [],
           };
         });
         notifyRiderWalletUpdated();
