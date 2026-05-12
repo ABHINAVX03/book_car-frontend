@@ -223,6 +223,11 @@ export const requestRide = (data) =>
     body: JSON.stringify(data),
   });
 
+export const cancelRideRequestRider = (id) =>
+  fetchJson(`${BASE_URL}/riders/cancelRideRequest/${id}`, {
+    method: 'POST',
+  });
+
 export const cancelRideRider = (id) =>
   fetchJson(`${BASE_URL}/riders/cancelRide/${id}`, {
     method: 'POST',

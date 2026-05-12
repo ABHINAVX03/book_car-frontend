@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
+  cancelRideRequestRider,
   cancelRideRider,
   estimateRideFare,
   getRiderWallet,
@@ -548,6 +549,18 @@ export default function BookRidePage({ toast }) {
     setLoading(true);
 
     try {
+      if (!resolvedRide && activeRequest?.id && requestStatus === RIDE_REQUEST_STATUS.PENDING) {
+        const cancelledRequest = await cancelRideRequestRider(activeRequest.id);
+        fetch('/api/mock/clear', { method: 'POST' }).catch(() => {});
+        toast.success("Ride request cancelled");
+        setStep("form");
+        setActiveRequest(cancelledRequest);
+        setResolvedRide(null);
+        setFindingDriverStartTime(null);
+        setFindingDriverTimeout(false);
+        return;
+      }
+
       let rideToCancel = resolvedRide;
 
       if (!rideToCancel && activeRequest) {
@@ -631,6 +644,7 @@ export default function BookRidePage({ toast }) {
   const driver = resolvedRide?.driver;
   const rideStatus = normalizeRideStatus(resolvedRide?.rideStatus);
   const requestStatus = normalizeRideStatus(activeRequest?.rideRequestStatus);
+  const canCancelPendingRequest = !resolvedRide && requestStatus === RIDE_REQUEST_STATUS.PENDING;
   const canCancelRide =
     isRideCancelable(rideStatus) ||
     (!resolvedRide &&
@@ -638,6 +652,8 @@ export default function BookRidePage({ toast }) {
   const rideOtp = normalizeOtpValue(resolvedRide?.otp);
   const riderActionLabel = isRideRateable(rideStatus)
     ? "Rate your driver"
+    : canCancelPendingRequest
+      ? "Cancel request"
     : canCancelRide
       ? resolvedRide
         ? "Cancel ride"
@@ -649,6 +665,8 @@ export default function BookRidePage({ toast }) {
           : "Waiting for driver";
   const riderActionHint = isRideRateable(rideStatus)
     ? "Your ride has ended. Share a rating to finish the trip."
+    : canCancelPendingRequest
+      ? "You can cancel while we are finding a driver."
     : canCancelRide
       ? "Your trip is confirmed and can still be cancelled before it starts."
       : isRideOngoing(rideStatus)
@@ -1087,8 +1105,7 @@ export default function BookRidePage({ toast }) {
 
                 {!resolvedRide && requestStatus === RIDE_REQUEST_STATUS.PENDING && (
                   <div className="status-message info">
-                    Waiting for a driver to accept your ride. Cancellation becomes available
-                    once a driver confirms the trip.
+                    Waiting for a driver to accept your ride. You can cancel this request before a driver confirms.
                   </div>
                 )}
 
@@ -1210,6 +1227,15 @@ export default function BookRidePage({ toast }) {
                 {isRideRateable(rideStatus) ? (
                   <button className="btn btn-primary" style={{ minWidth: 210 }} onClick={() => setStep("rating")}>
                     Rate your driver ⭐
+                  </button>
+                ) : canCancelPendingRequest ? (
+                  <button
+                    className="btn btn-danger"
+                    style={{ minWidth: 210 }}
+                    onClick={handleCancel}
+                    disabled={loading}
+                  >
+                    {loading ? <span className="spinner spinner-white" /> : "Cancel request"}
                   </button>
                 ) : canCancelRide ? (
                   <button
