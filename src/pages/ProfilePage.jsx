@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
-  addMoneyToRiderWallet,
+  createRiderWalletPaymentOrder,
   getDriverProfile,
   getDriverWallet,
   getRiderProfile,
@@ -10,6 +10,7 @@ import {
   withdrawMoneyFromDriverWallet,
   getRiderRides,
   getDriverRides,
+  verifyRiderWalletPayment,
 } from "../services/api";
 import SupportPanel from "../components/SupportPanel";
 
@@ -22,6 +23,28 @@ import { cachePhoneNumber, getCachedPhoneNumber } from "../utils/userContactCach
 
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 
+const loadRazorpayCheckout = () =>
+  new Promise((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.querySelector("script[src='https://checkout.razorpay.com/v1/checkout.js']");
+    if (existingScript) {
+      existingScript.addEventListener("load", resolve, { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Could not load payment checkout"));
+    document.body.appendChild(script);
+  });
+
 const getTransactionLabel = (transaction) => {
   if (transaction?.transactionMethod === "CASH_HANDOVER") {
     return `${formatRideId(transaction.ride?.id)} (CASH)`;
@@ -30,7 +53,15 @@ const getTransactionLabel = (transaction) => {
     return formatRideId(transaction.ride.id);
   }
 
-  return transaction?.transactionMethod === "BANKING" ? "Banking" : "Wallet";
+  const labels = {
+    BANKING: "Banking",
+    UPI: "UPI",
+    CARD: "Card",
+    NETBANKING: "Netbanking",
+    WALLET: "Wallet",
+  };
+
+  return labels[transaction?.transactionMethod] || "Wallet";
 };
 
 import { useNavigate } from "react-router-dom";
@@ -171,34 +202,42 @@ export default function ProfilePage({ toast }) {
           };
         });
       } else {
-        await addMoneyToRiderWallet(amount);
-        const refreshedWallet = await getRiderWallet();
-        setWallet((current) => {
-          const normalizedCurrent = normalizeWallet(current);
-          const normalizedRefreshed = normalizeWallet(refreshedWallet, normalizedCurrent);
-          const refreshedBalance = getWalletBalance(normalizedRefreshed);
-          const currentBalance = getWalletBalance(normalizedCurrent);
+        await loadRazorpayCheckout();
+        const order = await createRiderWalletPaymentOrder(amount);
+        const paymentResult = await new Promise((resolve, reject) => {
+          const checkout = new window.Razorpay({
+            key: order.key,
+            amount: order.amount,
+            currency: order.currency || "INR",
+            name: order.name || "BookCar Wallet",
+            description: "Wallet top-up",
+            order_id: order.orderId,
+            prefill: {
+              name: user?.name || profile?.user?.name || profile?.name || "",
+              email: user?.email || profile?.user?.email || profile?.email || "",
+              contact: profile?.user?.phoneNumber || profile?.phoneNumber || user?.phoneNumber || "",
+            },
+            handler: resolve,
+            modal: {
+              ondismiss: () => reject(new Error("Payment was cancelled")),
+            },
+          });
 
-          if (refreshedBalance <= currentBalance) {
-            return {
-              ...normalizedRefreshed,
-              balance: currentBalance + amount,
-              transactions: normalizedRefreshed.transactions?.length
-                ? normalizedRefreshed.transactions
-                : normalizedCurrent.transactions || [],
-            };
-          }
-
-          return {
-            ...normalizedRefreshed,
-            transactions: normalizedRefreshed.transactions || normalizedCurrent.transactions || [],
-          };
+          checkout.open();
         });
+
+        const verifiedWallet = await verifyRiderWalletPayment({
+          razorpayOrderId: paymentResult.razorpay_order_id,
+          razorpayPaymentId: paymentResult.razorpay_payment_id,
+          razorpaySignature: paymentResult.razorpay_signature,
+        });
+
+        setWallet((current) => normalizeWallet(verifiedWallet, normalizeWallet(current)));
         notifyRiderWalletUpdated();
       }
 
       setWalletAmount("");
-      toast.success(showingDriverWallet ? "Money withdrawn from driver wallet" : "Money added to rider wallet");
+      toast.success(showingDriverWallet ? "Money withdrawn from driver wallet" : "Payment verified and money added to rider wallet");
     } catch (e) {
       if (!showingDriverWallet && e?.status === 403) {
         toast.error("Rider wallet top-up was blocked by the backend. If you recently changed account roles, sign out and sign back in once. Otherwise the backend may not allow this rider wallet route yet.");

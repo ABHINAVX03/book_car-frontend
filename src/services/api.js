@@ -272,6 +272,18 @@ export const addMoneyToRiderWallet = (amount) =>
     },
   ]);
 
+export const createRiderWalletPaymentOrder = (amount) =>
+  fetchJson(`${BASE_URL}/riders/wallet/payment-order`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  });
+
+export const verifyRiderWalletPayment = (data) =>
+  fetchJson(`${BASE_URL}/riders/wallet/verify-payment`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
 export const withdrawMoneyFromRiderWallet = (amount) =>
   fetchJson(`${BASE_URL}/riders/wallet/withdraw`, {
     method: 'POST',
