@@ -15,6 +15,8 @@ import ProfilePage from "./pages/ProfilePage";
 import SupportPage from "./pages/SupportPage";
 import AdminRevenuePage from "./pages/AdminRevenuePage";
 
+const PENDING_DRIVER_VEHICLE_KEY = "bookcar-pending-driver-vehicle";
+
 const ProtectedRoute = ({ children }) => {
   const { user, token } = useAuth();
   if (!user || !token) {
@@ -23,14 +25,23 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Redirect already-logged-in users away from login/signup
-const GuestRoute = ({ children }) => {
+// Redirect already-logged-in users away from login/signup, except when they are
+// mid–driver signup (account exists + token, but vehicle step not finished yet).
+function GuestRoute({ children }) {
   const { user, token } = useAuth();
+  const location = useLocation();
+  const pendingDriverVehicle =
+    typeof sessionStorage !== "undefined" &&
+    sessionStorage.getItem(PENDING_DRIVER_VEHICLE_KEY) === "1";
+
   if (user && token) {
+    if (location.pathname === "/signup" && pendingDriverVehicle) {
+      return children;
+    }
     return <Navigate to="/dashboard" replace />;
   }
   return children;
-};
+}
 
 const Layout = ({ toast }) => {
   const location = useLocation();

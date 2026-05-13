@@ -51,6 +51,11 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    try {
+      sessionStorage.removeItem("bookcar-pending-driver-vehicle");
+    } catch {
+      /* ignore */
+    }
     setUser(null);
     setToken(null);
     clearStoredAuth();

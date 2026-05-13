@@ -11,6 +11,7 @@ import {
   getRiderRides,
   getDriverRides,
   verifyRiderWalletPayment,
+  refreshAccessToken,
 } from "../services/api";
 import SupportPanel from "../components/SupportPanel";
 
@@ -155,8 +156,18 @@ export default function ProfilePage({ toast }) {
     setObLoading(true);
     try {
       const d = await onboardDriver(userId, vehicleId);
-      const mergedRoles = Array.from(new Set([...(user?.roles || []), 'DRIVER']));
-      login({ ...user, roles: mergedRoles }, token || localStorage.getItem('token'));
+      try {
+        sessionStorage.removeItem('bookcar-pending-driver-vehicle');
+      } catch {
+        /* ignore */
+      }
+      let nextToken = token || localStorage.getItem('token');
+      try {
+        nextToken = await refreshAccessToken();
+      } catch {
+        /* keep existing token; user may need to sign in again for DRIVER routes */
+      }
+      login({ ...user, roles: ['DRIVER'] }, nextToken);
       toast.success(`Driver profile activated for vehicle ${d.vehicleId}.`);
       setOnboarding(false);
     } catch (e) {

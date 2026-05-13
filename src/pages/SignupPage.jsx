@@ -7,6 +7,8 @@ import { FiArrowRight, FiBriefcase, FiMail, FiPhone, FiShield, FiUser } from "re
 
 import { useNavigate } from "react-router-dom";
 
+const PENDING_DRIVER_VEHICLE_KEY = "bookcar-pending-driver-vehicle";
+
 export default function SignupPage({ toast }) {
   const navigate = useNavigate();
   const { login, user: currentUser } = useAuth();
@@ -51,8 +53,7 @@ export default function SignupPage({ toast }) {
       const payload = { ...form, phoneNumber: formatPhoneNumber(form.phoneNumber) };
       const user = await signup(payload);
       setCreatedUser(user);
-      // Try to extract userId from response; if not, ask user
-      const uid = user?.id || user?.userId;
+      const uid = user?.id ?? user?.userId ?? user?.data?.id;
       setUserId(uid);
 
       let token = user?.token || user?.accessToken || user?.jwt || user?.authToken || null;
@@ -71,7 +72,20 @@ export default function SignupPage({ toast }) {
       }
 
       if (mode === 'driver') {
-        login({ name: '', email: '', roles: [] }, token);
+        try {
+          sessionStorage.setItem(PENDING_DRIVER_VEHICLE_KEY, "1");
+        } catch {
+          /* ignore */
+        }
+        login(
+          {
+            name: user?.name || form.name,
+            email: user?.email || form.email,
+            phoneNumber: user?.phoneNumber || payload.phoneNumber,
+            roles: ["RIDER"],
+          },
+          token,
+        );
         setStep(2);
         toast.success({
           title: "Account created",
@@ -133,6 +147,11 @@ export default function SignupPage({ toast }) {
     setLoading(true);
     try {
       const driver = await onboardDriver(uid, vehicleId);
+      try {
+        sessionStorage.removeItem(PENDING_DRIVER_VEHICLE_KEY);
+      } catch {
+        /* ignore */
+      }
       const loginResponse = await apiLogin({ email: form.email, password: form.password });
       const token =
         loginResponse?.token ||
@@ -248,7 +267,16 @@ export default function SignupPage({ toast }) {
                   <button
                     type="button"
                     key={m.val}
-                    onClick={() => setMode(m.val)}
+                    onClick={() => {
+                      if (m.val === "rider") {
+                        try {
+                          sessionStorage.removeItem(PENDING_DRIVER_VEHICLE_KEY);
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+                      setMode(m.val);
+                    }}
                     style={{
                       flex: 1, padding: '10px', borderRadius: 9, border: 'none',
                       background: mode === m.val ? 'var(--white)' : 'transparent',

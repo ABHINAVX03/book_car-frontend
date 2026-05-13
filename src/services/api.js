@@ -39,6 +39,9 @@ const callRefreshToken = async () => {
   return refreshPromise;
 };
 
+/** Refreshes access token using the httpOnly refresh cookie (e.g. after driver onboarding updates roles). */
+export const refreshAccessToken = () => callRefreshToken();
+
 const shouldExpireAuthForError = (status, message = "") => {
   const normalizedMessage = message.toLowerCase();
 
