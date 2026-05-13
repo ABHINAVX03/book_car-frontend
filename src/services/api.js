@@ -274,6 +274,9 @@ export const withdrawMoneyFromRiderWallet = (amount) =>
   });
 
 // DRIVER
+export const getIncomingRideRequest = () =>
+  fetchJson(`${BASE_URL}/drivers/getIncomingRideRequest`);
+
 export const acceptRide = (rideRequestId) =>
   fetchJson(`${BASE_URL}/drivers/acceptRide/${rideRequestId}`, {
     method: 'POST',
