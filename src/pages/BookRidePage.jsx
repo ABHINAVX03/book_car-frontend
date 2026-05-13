@@ -8,6 +8,7 @@ import {
   getRiderRides,
   rateDriverByBody,
   requestRide,
+  verifyRidePayment,
 } from "../services/api";
 import LocationAutocomplete from "../components/LocationAutocomplete";
 import LocationName from "../components/LocationName";
@@ -29,7 +30,7 @@ import {
   normalizeRideStatus,
 } from "../constants/rideStatus";
 
-const PAYMENT_METHODS = ["CASH", "WALLET"];
+const PAYMENT_METHODS = ["CASH", "WALLET", "RAZORPAY"];
 const POLL_INTERVAL_MS = 2000;
 const SAME_LOCATION_TOLERANCE = 0.000001;
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
@@ -142,6 +143,8 @@ export default function BookRidePage({ toast }) {
   const [findingDriverTimeout, setFindingDriverTimeout] = useState(false);
   const [findingDriverStartTime, setFindingDriverStartTime] = useState(null);
   const [currentLocationLoading, setCurrentLocationLoading] = useState(false);
+  const [razorpayPaymentLoading, setRazorpayPaymentLoading] = useState(false);
+  const [razorpayPaid, setRazorpayPaid] = useState(false);
   const cancelInFlightRef = useRef(false);
   const fareFallbackNoticeShownRef = useRef(false);
 
@@ -531,6 +534,7 @@ export default function BookRidePage({ toast }) {
       setActiveRequest(res);
       setResolvedRide(null);
       setFarePreview(null);
+      setRazorpayPaid(false);
       setStep("pending");
       setFindingDriverStartTime(Date.now());
       setFindingDriverTimeout(false);
@@ -634,6 +638,59 @@ export default function BookRidePage({ toast }) {
     setActiveRequest(null);
     setResolvedRide(null);
     setRating(0);
+    setRazorpayPaid(false);
+  };
+
+  const handleRazorpayRidePayment = async () => {
+    const rideId = resolvedRide?.id;
+    if (!rideId) return;
+    setRazorpayPaymentLoading(true);
+    try {
+      const order = await createRidePaymentOrder(rideId);
+      await new Promise((resolve, reject) => {
+        if (window.Razorpay) return resolve();
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Could not load Razorpay SDK'));
+        document.body.appendChild(script);
+      });
+      const options = {
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'BookCar',
+        description: order.description || `Payment for ride #${rideId}`,
+        order_id: order.orderId,
+        handler: async (response) => {
+          try {
+            await verifyRidePayment(rideId, {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            setRazorpayPaid(true);
+            toast.success('Payment successful! Receipt emailed to you.');
+          } catch (err) {
+            toast.error(err.message || 'Payment verification failed');
+          } finally {
+            setRazorpayPaymentLoading(false);
+          }
+        },
+        prefill: {},
+        theme: { color: '#6366f1' },
+        modal: { ondismiss: () => setRazorpayPaymentLoading(false) },
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (resp) => {
+        toast.error('Payment failed: ' + (resp.error?.description || 'Unknown error'));
+        setRazorpayPaymentLoading(false);
+      });
+      rzp.open();
+    } catch (err) {
+      toast.error(err.message || 'Could not initiate Razorpay payment');
+      setRazorpayPaymentLoading(false);
+    }
   };
 
   const visibleStatus = resolvedRide?.rideStatus || activeRequest?.rideRequestStatus || RIDE_REQUEST_STATUS.PENDING;
@@ -1114,6 +1171,32 @@ export default function BookRidePage({ toast }) {
                     This ride was cancelled. You can book a new ride now.
                   </div>
                 )}
+
+                {rideStatus === RIDE_STATUS.ENDED && resolvedRide?.paymentMethod === 'RAZORPAY' && !razorpayPaid && (
+                  <div style={{ marginTop: '1rem', padding: '1.25rem', background: 'linear-gradient(135deg,#6366f110,var(--surface))', border: '2px solid #6366f140', borderRadius: 14 }}>
+                    <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 4 }}>💳 Payment Required</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                      Your ride is complete! Pay <strong>₹{resolvedRide?.fare?.toFixed(2)}</strong> securely via card, UPI, or netbanking.
+                    </div>
+                    <button
+                      className="btn btn-primary btn-full"
+                      onClick={handleRazorpayRidePayment}
+                      disabled={razorpayPaymentLoading}
+                    >
+                      {razorpayPaymentLoading ? <span className="spinner spinner-white" /> : `Pay ₹${resolvedRide?.fare?.toFixed(2)} via Card / UPI`}
+                    </button>
+                  </div>
+                )}
+
+                {rideStatus === RIDE_STATUS.ENDED && resolvedRide?.paymentMethod === 'RAZORPAY' && razorpayPaid && (
+                  <div style={{ marginTop: '1rem', padding: '1rem', background: '#10b98115', border: '1px solid #10b98140', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: '1.4rem' }}>✅</span>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>Payment confirmed!</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>A receipt has been emailed to you. Please rate your driver.</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {driver && (
@@ -1224,7 +1307,11 @@ export default function BookRidePage({ toast }) {
                     <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{riderActionLabel}</div>
                     <div style={{ marginTop: 4, fontSize: "0.85rem", color: "var(--muted)" }}>{riderActionHint}</div>
                   </div>
-                {isRideRateable(rideStatus) ? (
+                {rideStatus === RIDE_STATUS.ENDED && resolvedRide?.paymentMethod === 'RAZORPAY' && !razorpayPaid ? (
+                  <button className="btn btn-primary" style={{ minWidth: 210, background: '#6366f1' }} onClick={handleRazorpayRidePayment} disabled={razorpayPaymentLoading}>
+                    {razorpayPaymentLoading ? <span className="spinner spinner-white" /> : '💳 Pay Now'}
+                  </button>
+                ) : isRideRateable(rideStatus) && (resolvedRide?.paymentMethod !== 'RAZORPAY' || razorpayPaid) ? (
                   <button className="btn btn-primary" style={{ minWidth: 210 }} onClick={() => setStep("rating")}>
                     Rate your driver ⭐
                   </button>
