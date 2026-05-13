@@ -915,17 +915,19 @@ export default function BookRidePage({ toast }) {
                         }}
                       >
                         <div className="payment-method-topline">
-                          <span className="payment-method-icon">{isWallet ? "👛" : "💵"}</span>
+                          <span className="payment-method-icon">{isWallet ? "👛" : method === "RAZORPAY" ? "💳" : "💵"}</span>
                           <span className={`badge ${isSelected ? "badge-yellow" : "badge-gray"}`}>
                             {isSelected ? "Selected" : "Available"}
                           </span>
                         </div>
-                        <div className="payment-method-title">{method === "WALLET" ? "Wallet pay" : "Cash pay"}</div>
+                        <div className="payment-method-title">{method === "WALLET" ? "Wallet pay" : method === "RAZORPAY" ? "Card / UPI" : "Cash pay"}</div>
                         <div className="payment-method-copy">
                           {isWallet
                             ? walletBalance === null
                               ? "Wallet balance is syncing."
                               : `Balance ${formatCurrency(walletBalance)}`
+                            : method === "RAZORPAY"
+                            ? "Pay via card, UPI or netbanking after the ride ends."
                             : "Pay the driver directly at the end of the trip."}
                         </div>
                         {isWallet && selectedFare > 0 && walletBalance !== null && (
@@ -943,7 +945,11 @@ export default function BookRidePage({ toast }) {
                   <div>
                     <div className="summary-label">Current payment flow</div>
                     <div className="summary-value">
-                      {form.paymentMethod === "WALLET" ? "Wallet will be charged automatically" : "Cash will be collected after drop-off"}
+                      {form.paymentMethod === "WALLET"
+                        ? "Wallet will be charged automatically"
+                        : form.paymentMethod === "RAZORPAY"
+                        ? "Razorpay checkout opens after the ride ends"
+                        : "Cash will be collected after drop-off"}
                     </div>
                   </div>
                   {form.paymentMethod === "WALLET" && walletBalance !== null && !walletCanCoverPreview && selectedFare > 0 ? (
@@ -955,6 +961,14 @@ export default function BookRidePage({ toast }) {
                       Top up wallet
                     </button>
                   ) : form.paymentMethod === "WALLET" ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => set("paymentMethod", "CASH")}
+                    >
+                      Switch to cash
+                    </button>
+                  ) : form.paymentMethod === "RAZORPAY" ? (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
