@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getRiderRides, getDriverRides } from "../services/api";
 import { getRideStatusBadgeClass } from "../constants/rideStatus";
+import { getDriverEarnings, commissionLabel } from "../constants/commission";
 import LocationName from "../components/LocationName";
 import { formatRideId } from "../utils/formatId";
 import { formatDateTime } from "../utils/formatDate";
@@ -34,7 +35,7 @@ export default function RidesPage(props) {
   };
 
   useEffect(() => { fetchRides(page); }, [page, isDriver]);
-  const getDisplayFare = (fare) => (typeof fare === "number" ? (isDriver ? fare * 0.85 : fare) : 0);
+  const getDisplayFare = (fare) => (typeof fare === "number" ? (isDriver ? getDriverEarnings(fare) : fare) : 0);
   const completedRides = rides.filter((ride) => String(ride.rideStatus).toUpperCase() === "ENDED").length;
   const activeRides = rides.filter((ride) => !["ENDED", "CANCELLED"].includes(String(ride.rideStatus).toUpperCase())).length;
   const totalFare = rides.reduce((sum, ride) => sum + getDisplayFare(ride.fare), 0);
@@ -70,7 +71,7 @@ export default function RidesPage(props) {
               <div className="info-tile-value">{completedRides}</div>
             </div>
             <div className="info-tile">
-              <div className="info-tile-label">{isDriver ? "Earnings shown" : "Fare shown"}</div>
+              <div className="info-tile-label">{isDriver ? "Your earnings" : "Fare shown"}</div>
               <div className="info-tile-value">₹{totalFare.toFixed(0)}</div>
             </div>
           </div>
@@ -134,9 +135,16 @@ export default function RidesPage(props) {
                         )}
                       </div>
                       {typeof ride.fare === "number" ? (
-                        <span style={{ fontFamily: 'Clash Display', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.5px' }}>
-                          ₹{getDisplayFare(ride.fare).toFixed(0)}
-                        </span>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontFamily: 'Clash Display', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.5px' }}>
+                            ₹{getDisplayFare(ride.fare).toFixed(0)}
+                          </span>
+                          {isDriver && (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>
+                              {commissionLabel}
+                            </div>
+                          )}
+                        </div>
                       ) : null}
                     </div>
 

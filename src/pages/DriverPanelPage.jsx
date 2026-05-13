@@ -17,6 +17,7 @@ import {
   getRideStatusBadgeClass,
   normalizeRideStatus,
 } from "../constants/rideStatus";
+import { getDriverEarnings, commissionLabel } from "../constants/commission";
 import LocationName from "../components/LocationName";
 import RideMap from "../components/RideMap";
 import SupportPanel from "../components/SupportPanel";
@@ -29,7 +30,7 @@ const RATED_RIDER_STORAGE_KEY = "bookcar-rated-rider-rides";
 const ACTIVE_DRIVER_STATUSES = [RIDE_STATUS.CONFIRMED, RIDE_STATUS.ONGOING];
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 const normalizeOtpValue = (value = "") => String(value).replace(/\D/g, "");
-const getDriverEarnings = (fare) => fare ? fare * 0.85 : 0;
+// getDriverEarnings is imported from ../constants/commission
 
 const readRatedRideIds = () => {
   try {
@@ -686,8 +687,13 @@ export default function DriverPanelPage({ toast }) {
                 </div>
 
                 <div style={{ marginTop: 12, fontWeight: 700, fontSize: "1.2rem", fontFamily: "Clash Display" }}>
-                  {incomingRequest.fare ? `₹${getDriverEarnings(incomingRequest.fare).toFixed(0)}` : "Fair pending"}
+                  {incomingRequest.fare ? `₹${getDriverEarnings(incomingRequest.fare).toFixed(0)}` : "Fare pending"}
                   <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--muted)', marginLeft: 8 }}>via {incomingRequest.paymentMethod}</span>
+                  {incomingRequest.fare && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
+                      Your earnings · {commissionLabel}
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -731,7 +737,15 @@ export default function DriverPanelPage({ toast }) {
                 <div style={{ display: "flex", gap: 6 }}>📍 Pickup: <strong><LocationName coords={currentRide.pickupLocation?.coordinates} /></strong></div>
                 <div style={{ display: "flex", gap: 6 }}>🏁 Drop: <strong><LocationName coords={currentRide.dropOffLocation?.coordinates} /></strong></div>
                 <div>💳 Payment: <strong>{currentRide.paymentMethod || "Unknown"}</strong></div>
-                <div>💰 Fare: <strong>{currentRide.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}</strong></div>
+                <div>
+                  💰 Your earnings:{" "}
+                  <strong>{currentRide.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}</strong>
+                  {currentRide.fare && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: 6, fontWeight: 400 }}>
+                      ({commissionLabel})
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div style={{ height: "240px", marginTop: "1rem" }}>
