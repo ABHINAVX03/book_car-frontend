@@ -6,6 +6,8 @@ import {
   endRide,
   getDriverWallet,
   getDriverRides,
+  getIncomingRideRequest,
+  updateDriverLocation,
   rateRiderByBody,
   startRide,
   withdrawMoneyFromDriverWallet,
@@ -258,6 +260,24 @@ export default function DriverPanelPage({ toast }) {
     if (!isDriver) return undefined;
     refreshRides({ silent: true });
   }, [ratedRideIds, isDriver]);
+
+  useEffect(() => {
+    if (!isDriver) return undefined;
+    if (!navigator.geolocation) return undefined;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        updateDriverLocation(
+          position.coords.longitude,
+          position.coords.latitude
+        ).catch(() => {});
+      },
+      (error) => console.error("Location error:", error),
+      { enableHighAccuracy: true }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isDriver]);
 
   const handleAction = async (fn, successMsg, onSuccess) => {
     setActionLoading(true);
