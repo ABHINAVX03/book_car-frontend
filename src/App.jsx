@@ -13,6 +13,7 @@ import DriverPanelPage from "./pages/DriverPanelPage";
 import RidesPage from "./pages/RidesPage";
 import ProfilePage from "./pages/ProfilePage";
 import SupportPage from "./pages/SupportPage";
+import AdminRevenuePage from "./pages/AdminRevenuePage";
 
 const ProtectedRoute = ({ children }) => {
   const { user, token } = useAuth();
@@ -72,7 +73,9 @@ function AppInner() {
             <ProtectedRoute><ProfilePage toast={toast} /></ProtectedRoute>
           } />
           <Route path="support" element={<SupportPage />} />
-          
+          <Route path="admin/revenue" element={
+            <ProtectedRoute><AdminRevenuePage toast={toast} /></ProtectedRoute>
+          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

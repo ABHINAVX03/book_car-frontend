@@ -355,3 +355,7 @@ export const updateDriverLocation = (longitude, latitude) =>
       coordinates: [longitude, latitude]
     }),
   });
+
+// ADMIN
+export const getAdminRevenue = (page = 0, size = 15) =>
+  fetchJson(`${BASE_URL}/admin/revenue?page=${page}&size=${size}`);

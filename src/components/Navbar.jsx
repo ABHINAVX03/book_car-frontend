@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
+  FiBarChart2,
   FiCompass,
   FiHeadphones,
   FiLayout,
@@ -15,7 +16,7 @@ import {
 } from "react-icons/fi";
 
 export default function Navbar({ toast }) {
-  const { user, logout, isDriver, isRider } = useAuth();
+  const { user, logout, isDriver, isRider, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
@@ -48,6 +49,7 @@ export default function Navbar({ toast }) {
     { label: "Driver Panel", icon: FiTruck, path: "/driver", show: isDriver },
     { label: "My Rides", icon: FiMapPin, path: "/rides", show: Boolean(user) },
     { label: "Profile", icon: FiUser, path: "/profile", show: Boolean(user) },
+    { label: "Revenue", icon: FiBarChart2, path: "/admin/revenue", show: isAdmin, isAdmin: true },
   ].filter((item) => item.show);
 
   const toggleTheme = () => {
@@ -79,14 +81,18 @@ export default function Navbar({ toast }) {
         <div className={`navbar-panel ${isMenuOpen ? "open" : ""}`}>
           {user && (
             <div className="navbar-links">
-              {navItems.map(({ label, icon: Icon, path }, index) => (
+              {navItems.map(({ label, icon: Icon, path, isAdmin: adminItem }, index) => (
                 <button
                   key={path}
                   className={`nav-link animate-stagger-down delay-${Math.min(700, (index + 1) * 100)} ${pathname === path ? 'active' : ''}`}
                   onClick={() => navigate(path)}
+                  style={adminItem ? { color: '#f59e0b', fontWeight: 700 } : {}}
                 >
                   <Icon />
                   {label}
+                  {adminItem && (
+                    <span style={{ marginLeft: 4, fontSize: '0.62rem', background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40', borderRadius: 6, padding: '1px 5px', verticalAlign: 'middle' }}>ADMIN</span>
+                  )}
                 </button>
               ))}
             </div>
