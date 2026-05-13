@@ -23,6 +23,15 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Redirect already-logged-in users away from login/signup
+const GuestRoute = ({ children }) => {
+  const { user, token } = useAuth();
+  if (user && token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
 const Layout = ({ toast }) => {
   const location = useLocation();
   const noNavPages = ['/signup', '/login', '/'];
@@ -54,8 +63,8 @@ function AppInner() {
       <Routes>
         <Route path="/" element={<Layout toast={toast} />}>
           <Route index element={<HomePage />} />
-          <Route path="signup" element={<SignupPage toast={toast} />} />
-          <Route path="login" element={<LoginPage toast={toast} />} />
+          <Route path="signup" element={<GuestRoute><SignupPage toast={toast} /></GuestRoute>} />
+          <Route path="login" element={<GuestRoute><LoginPage toast={toast} /></GuestRoute>} />
           
           <Route path="dashboard" element={
             <ProtectedRoute><DashboardPage toast={toast} /></ProtectedRoute>

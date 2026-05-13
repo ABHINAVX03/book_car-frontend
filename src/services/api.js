@@ -362,10 +362,10 @@ export const getAdminRevenue = (page = 0, size = 15) =>
 
 // RAZORPAY RIDE PAYMENT
 export const createRidePaymentOrder = (rideId) =>
-  fetchJson(${BASE_URL}/riders/rides//payment-order, { method: 'POST' });
+  fetchJson(`${BASE_URL}/riders/rides/${rideId}/payment-order`, { method: 'POST' });
 
 export const verifyRidePayment = (rideId, data) =>
-  fetchJson(${BASE_URL}/riders/rides//verify-ride-payment, {
+  fetchJson(`${BASE_URL}/riders/rides/${rideId}/verify-ride-payment`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
