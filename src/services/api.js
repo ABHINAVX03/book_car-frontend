@@ -121,14 +121,21 @@ const fetchJson = async (url, options = {}) => {
   }
 
   const doFetch = async (currentToken) => {
+    const headers = {
+      Accept: 'application/json',
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
+      ...options.headers,
+    };
+
+    // FIX: Only set Content-Type to JSON if the body is NOT FormData.
+    // If it IS FormData, let the browser set it automatically with the correct boundary.
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     return await fetch(url, {
       ...options,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
-        ...options.headers,
-      },
+      headers,
       credentials: 'include',
     });
   };
