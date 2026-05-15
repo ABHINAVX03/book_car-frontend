@@ -378,8 +378,8 @@ export const uploadDriverDoc = (docType, file) => {
   });
 };
 
-export const getPendingDrivers = (page = 0) =>
-  fetchJson(`${BASE_URL}/admin/drivers/pending?pageOffset=${page}`, { method: 'GET' });
+export const getAllDriversByStatus = (status = 'PENDING', page = 0) =>
+  fetchJson(`${BASE_URL}/admin/drivers?status=${status}&pageOffset=${page}`, { method: 'GET' });
 
 export const approveDriver = (id) =>
   fetchJson(`${BASE_URL}/admin/drivers/${id}/approve`, { method: 'PUT' });

@@ -1,38 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { getPendingDrivers, approveDriver, rejectDriver } from '../services/api';
-import { FiCheck, FiX, FiEye } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getAllDriversByStatus, approveDriver, rejectDriver } from '../services/api';
+import { FiCheck, FiX, FiEye, FiClock, FiCheckCircle, FiXCircle, FiFileText } from 'react-icons/fi';
 
 const AdminVerificationDashboard = ({ toast }) => {
-    const [pendingDrivers, setPendingDrivers] = useState([]);
+    const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDriver, setSelectedDriver] = useState(null);
+    const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, APPROVED, REJECTED
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
+    const [page, setPage] = useState(0);
+
+    const loadDrivers = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            const data = await getAllDriversByStatus(activeTab, page);
+            setDrivers(data.content || []);
+        } catch (err) {
+            if (!silent) toast.error("Failed to load drivers");
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    }, [activeTab, page, toast]);
 
     useEffect(() => {
-        loadPending();
-    }, []);
+        loadDrivers();
+    }, [loadDrivers]);
 
-    const loadPending = async () => {
-        try {
-            const data = await getPendingDrivers();
-            setPendingDrivers(data.content || []);
-        } catch (err) {
-            toast.error("Failed to load pending drivers");
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Polling for real-time updates (every 15 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadDrivers(true);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [loadDrivers]);
 
     const handleApprove = async (id) => {
-        if (!window.confirm("Approve this driver? They will be able to go online immediately.")) return;
+        if (!window.confirm("Approve this driver? They will be notified and can go online.")) return;
         try {
             await approveDriver(id);
             toast.success("Driver approved!");
-            loadPending();
+            loadDrivers();
             setSelectedDriver(null);
         } catch (err) {
-            toast.error("Action failed");
+            toast.error("Approval failed");
         }
     };
 
@@ -43,94 +54,172 @@ const AdminVerificationDashboard = ({ toast }) => {
             toast.success("Driver rejected");
             setShowRejectModal(false);
             setRejectionReason('');
-            loadPending();
+            loadDrivers();
             setSelectedDriver(null);
         } catch (err) {
-            toast.error("Action failed");
+            toast.error("Rejection failed");
         }
     };
 
-    if (loading) return <div className="flex-center p-20"><span className="spinner" /></div>;
+    const StatusTab = ({ id, label, icon: Icon, count }) => (
+        <button
+            onClick={() => { setActiveTab(id); setPage(0); setSelectedDriver(null); }}
+            className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-all ${
+                activeTab === id ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted hover:bg-surface-2'
+            }`}
+        >
+            <Icon size={16} />
+            <span className="font-bold">{label}</span>
+            {count !== undefined && <span className="ml-2 px-2 py-0.5 bg-surface-3 rounded-full text-[10px]">{count}</span>}
+        </button>
+    );
 
-    return (
-        <div className="max-w-7xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-8">Driver Verification Queue</h1>
+    const DocumentPreview = ({ label, url }) => {
+        if (!url) return <div className="w-full h-48 bg-surface-2 rounded-xl flex-center text-muted italic text-xs">Not Uploaded</div>;
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* List of Pending Drivers */}
-                <div className="lg:col-span-1 space-y-4">
-                    {pendingDrivers.length === 0 ? (
-                        <div className="text-center p-10 bg-surface-1 rounded-xl">No pending drivers found.</div>
-                    ) : (
-                        pendingDrivers.map(driver => (
-                            <div 
-                                key={driver.id} 
-                                className={`premium-card p-4 cursor-pointer transition-all ${selectedDriver?.id === driver.id ? 'border-primary bg-primary/5' : ''}`}
-                                onClick={() => setSelectedDriver(driver)}
-                            >
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="font-bold">{driver.user?.name || 'Unknown'}</div>
-                                        <div className="text-xs text-muted">ID: {driver.id} | Vehicle: {driver.vehicleId}</div>
-                                    </div>
-                                    <FiEye className="text-muted" />
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
+        const isPdf = url.toLowerCase().endsWith('.pdf');
 
-                {/* Details Section */}
-                <div className="lg:col-span-2">
-                    {selectedDriver ? (
-                        <div className="premium-card p-8 animate-fade-in">
-                            <div className="flex justify-between mb-8">
-                                <div>
-                                    <h2 className="text-xl font-bold">{selectedDriver.user?.name}</h2>
-                                    <p className="text-sm text-muted">Reviewing documents for vehicle: {selectedDriver.vehicleId}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button className="btn btn-primary btn-sm" onClick={() => handleApprove(selectedDriver.id)}>
-                                        <FiCheck className="mr-1" /> Approve
-                                    </button>
-                                    <button className="btn btn-red btn-sm" onClick={() => setShowRejectModal(true)}>
-                                        <FiX className="mr-1" /> Reject
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {[
-                                    { label: 'Profile Photo', url: selectedDriver.profilePhotoUrl },
-                                    { label: 'Registration (RC)', url: selectedDriver.rcUrl },
-                                    { label: 'License', url: selectedDriver.licenseUrl },
-                                    { label: 'Insurance', url: selectedDriver.insuranceUrl }
-                                ].map(doc => (
-                                    <div key={doc.label}>
-                                        <label className="label text-xs uppercase mb-2">{doc.label}</label>
-                                        {doc.url ? (
-                                            <a href={doc.url} target="_blank" rel="noreferrer" className="block">
-                                                {doc.url.toLowerCase().endsWith('.pdf') ? (
-                                                    <div className="w-full h-48 bg-red-50 rounded-xl flex flex-col items-center justify-center border-2 border-red-100 hover:bg-red-100 transition-colors">
-                                                        <span className="text-4xl mb-2">📄</span>
-                                                        <span className="text-sm font-bold text-red-600">VIEW PDF DOCUMENT</span>
-                                                        <span className="text-[10px] text-red-400 mt-1">(Opens in new tab)</span>
-                                                    </div>
-                                                ) : (
-                                                    <img src={doc.url} className="w-full h-48 object-cover rounded-xl border border-surface-2 hover:opacity-90 transition-opacity" />
-                                                )}
-                                            </a>
-                                        ) : (
-                                            <div className="w-full h-48 bg-surface-2 rounded-xl flex-center text-muted text-xs italic">Not Uploaded</div>
-                                        )}
-                                    </div>
-                                ))}
+        return (
+            <div className="space-y-2">
+                <label className="text-[10px] uppercase font-black text-muted tracking-widest">{label}</label>
+                <div className="relative group">
+                    {isPdf ? (
+                        <div className="w-full h-64 bg-surface-3 rounded-xl border border-surface-2 overflow-hidden">
+                            <iframe 
+                                src={`${url}#toolbar=0`} 
+                                className="w-full h-full border-none"
+                                title={label}
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex-center transition-all">
+                                <a href={url} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">Full Screen Preview</a>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-center flex-col h-64 bg-surface-1 rounded-2xl text-muted">
-                            <FiEye size={40} className="mb-4 opacity-20" />
-                            <p>Select a driver from the queue to view documents</p>
+                        <a href={url} target="_blank" rel="noreferrer" className="block">
+                            <img src={url} alt={label} className="w-full h-48 object-cover rounded-xl border border-surface-2 hover:brightness-90 transition-all" />
+                        </a>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="max-w-7xl mx-auto p-6 animate-page-enter">
+            <div className="flex justify-between items-end mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold mb-2">Verification Control</h1>
+                    <p className="text-muted">Manage driver onboarding and document approvals</p>
+                </div>
+                <div className="text-right">
+                    <div className="text-xs text-muted mb-1 flex items-center justify-end gap-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        Live Monitoring Active
+                    </div>
+                </div>
+            </div>
+
+            {/* Status Tabs */}
+            <div className="flex border-b border-surface-2 mb-8 overflow-x-auto">
+                <StatusTab id="PENDING" label="Pending" icon={FiClock} />
+                <StatusTab id="APPROVED" label="Approved" icon={FiCheckCircle} />
+                <StatusTab id="REJECTED" label="Rejected" icon={FiXCircle} />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
+                {/* Table View */}
+                <div className="xl:col-span-2 premium-card overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-surface-2 text-xs uppercase text-muted">
+                                    <th className="px-6 py-4">Driver</th>
+                                    <th className="px-6 py-4">Vehicle Details</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-2">
+                                {loading ? (
+                                    <tr><td colSpan="4" className="px-6 py-10 text-center"><span className="spinner mx-auto" /></td></tr>
+                                ) : drivers.length === 0 ? (
+                                    <tr><td colSpan="4" className="px-6 py-10 text-center text-muted">No drivers found in this category.</td></tr>
+                                ) : (
+                                    drivers.map(driver => (
+                                        <tr 
+                                            key={driver.id} 
+                                            className={`hover:bg-primary/5 transition-colors cursor-pointer ${selectedDriver?.id === driver.id ? 'bg-primary/5' : ''}`}
+                                            onClick={() => setSelectedDriver(driver)}
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold">{driver.user?.name}</div>
+                                                <div className="text-[10px] text-muted">USER ID: {driver.user?.id}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm">{driver.vehicleId}</div>
+                                                <div className="text-[10px] uppercase text-muted font-bold tracking-tighter">
+                                                    {driver.vehicleType} • {driver.vehicleModel || 'N/A'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${
+                                                    driver.verificationStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                                    driver.verificationStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                                }`}>
+                                                    {driver.verificationStatus}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <button className="btn btn-ghost btn-sm">Review</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Preview Panel */}
+                <div className="xl:col-span-1">
+                    {selectedDriver ? (
+                        <div className="premium-card p-6 sticky top-24 animate-fade-in shadow-2xl border-primary/20">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-xl font-bold">{selectedDriver.user?.name}</h2>
+                                    <p className="text-xs text-muted">Driver ID: {selectedDriver.id}</p>
+                                </div>
+                                {activeTab === 'PENDING' && (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleApprove(selectedDriver.id)} className="w-8 h-8 rounded-full bg-green-500 text-white flex-center hover:bg-green-600 transition-colors">
+                                            <FiCheck />
+                                        </button>
+                                        <button onClick={() => setShowRejectModal(true)} className="w-8 h-8 rounded-full bg-red-500 text-white flex-center hover:bg-red-600 transition-colors">
+                                            <FiX />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-6">
+                                <DocumentPreview label="Profile Photo" url={selectedDriver.profilePhotoUrl} />
+                                <DocumentPreview label="Registration (RC)" url={selectedDriver.rcUrl} />
+                                <DocumentPreview label="Driving License" url={selectedDriver.licenseUrl} />
+                                <DocumentPreview label="Insurance Policy" url={selectedDriver.insuranceUrl} />
+                            </div>
+
+                            {selectedDriver.rejectionReason && (
+                                <div className="mt-6 p-4 bg-red-50 rounded-xl border border-red-100">
+                                    <label className="text-[10px] uppercase font-black text-red-600 mb-1 block">Rejection Reason</label>
+                                    <p className="text-sm text-red-700 italic">"{selectedDriver.rejectionReason}"</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="premium-card p-12 text-center text-muted border-dashed border-2 border-surface-3 flex flex-col items-center">
+                            <FiFileText size={48} className="mb-4 opacity-20" />
+                            <p className="text-sm">Select a driver from the table to review documents</p>
                         </div>
                     )}
                 </div>
@@ -140,17 +229,18 @@ const AdminVerificationDashboard = ({ toast }) => {
             {showRejectModal && (
                 <div className="modal-overlay flex-center">
                     <div className="modal-content max-w-md p-8 animate-zoom-in">
-                        <h3 className="text-xl font-bold mb-4">Reject Verification</h3>
-                        <p className="text-sm text-muted mb-6">Tell the driver why their documents were rejected.</p>
+                        <h3 className="text-xl font-bold mb-4 text-red-600">Reject Application</h3>
+                        <p className="text-sm text-muted mb-6">Provide clear feedback to the driver about what's wrong with their documents.</p>
                         <textarea 
                             className="input-field min-h-[120px] mb-6"
-                            placeholder="e.g. License photo is blurry, Insurance expired..."
+                            placeholder="e.g. License photo is blurry, Insurance expired on 12/2025..."
                             value={rejectionReason}
                             onChange={e => setRejectionReason(e.target.value)}
+                            autoFocus
                         />
                         <div className="flex gap-4">
-                            <button className="btn btn-ghost flex-1" onClick={() => setShowRejectModal(false)}>Cancel</button>
-                            <button className="btn btn-red flex-1" onClick={handleReject}>Send Rejection</button>
+                            <button className="btn btn-ghost flex-1" onClick={() => setShowRejectModal(false)}>Cancel Review</button>
+                            <button className="btn btn-red flex-1 font-bold" onClick={handleReject}>Confirm Rejection</button>
                         </div>
                     </div>
                 </div>
