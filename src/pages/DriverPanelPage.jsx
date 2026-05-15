@@ -30,7 +30,6 @@ const RATED_RIDER_STORAGE_KEY = "bookcar-rated-rider-rides";
 const ACTIVE_DRIVER_STATUSES = [RIDE_STATUS.CONFIRMED, RIDE_STATUS.ONGOING];
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 const normalizeOtpValue = (value = "") => String(value).replace(/\D/g, "");
-// getDriverEarnings is imported from ../constants/commission
 
 const readRatedRideIds = () => {
   try {
@@ -46,14 +45,8 @@ const saveRatedRideIds = (ids) => {
   window.localStorage.setItem(RATED_RIDER_STORAGE_KEY, JSON.stringify(ids));
 };
 
-const formatCoords = (location) => {
-  const coords = location?.coordinates;
-  return coords ? `${coords[1]?.toFixed(3)}, ${coords[0]?.toFixed(3)}` : "N/A";
-};
-
 const getRideStage = (ride) => {
   const status = normalizeRideStatus(ride?.rideStatus);
-
   if (status === RIDE_STATUS.ENDED) return "ended";
   if (status === RIDE_STATUS.ONGOING) return "started";
   if (status === RIDE_STATUS.CONFIRMED) return "accepted";
@@ -67,7 +60,6 @@ const getDriverRideStage = (ride, ratedRideIds = []) => {
   ) {
     return "completed";
   }
-
   return getRideStage(ride);
 };
 
@@ -81,14 +73,13 @@ const selectNextDriverRide = (rides = [], currentRideId, ratedRideIds = []) => {
   const matchingCurrentRide = currentRideId
     ? rides.find((ride) => ride.id === currentRideId)
     : null;
-
-  if (matchingCurrentRide) {
-    return matchingCurrentRide;
-  }
+  if (matchingCurrentRide) return matchingCurrentRide;
 
   const visibleRides = getVisibleDriverRides(rides, ratedRideIds);
   return (
-    visibleRides.find((ride) => ACTIVE_DRIVER_STATUSES.includes(normalizeRideStatus(ride.rideStatus))) ||
+    visibleRides.find((ride) =>
+      ACTIVE_DRIVER_STATUSES.includes(normalizeRideStatus(ride.rideStatus))
+    ) ||
     visibleRides[0] ||
     null
   );
@@ -96,7 +87,6 @@ const selectNextDriverRide = (rides = [], currentRideId, ratedRideIds = []) => {
 
 const DriverRouteSummary = ({ ride }) => {
   if (!ride) return null;
-
   return (
     <div
       style={{
@@ -157,10 +147,8 @@ export default function DriverPanelPage({ toast }) {
 
   const refreshWallet = async ({ silent = false } = {}) => {
     if (walletSyncInFlightRef.current) return;
-
     walletSyncInFlightRef.current = true;
     if (!silent) setWalletLoading(true);
-
     try {
       const response = await getDriverWallet();
       setWallet(response);
@@ -175,25 +163,23 @@ export default function DriverPanelPage({ toast }) {
   const refreshRides = async ({ silent = false } = {}) => {
     if (ridesSyncInFlightRef.current) return;
     if (document.visibilityState === "hidden") return;
-
     ridesSyncInFlightRef.current = true;
     if (!silent) setRefreshing(true);
-
     try {
       const res = await getDriverRides(0, 20);
       const rides = res?.content || [];
-      const visibleRides = getVisibleDriverRides(rides, ratedRideIdsRef.current);
-      const nextRide = selectNextDriverRide(rides, currentRideRef.current?.id, ratedRideIdsRef.current);
-
+      const nextRide = selectNextDriverRide(
+        rides,
+        currentRideRef.current?.id,
+        ratedRideIdsRef.current
+      );
       setLiveRides(rides);
       setCurrentRide(nextRide);
       if (rideStageRef.current !== "rating") {
         setRideStage(getDriverRideStage(nextRide, ratedRideIdsRef.current));
       }
     } catch (error) {
-      if (!silent) {
-        toast.error(error.message || "Could not refresh driver rides");
-      }
+      if (!silent) toast.error(error.message || "Could not refresh driver rides");
     } finally {
       ridesSyncInFlightRef.current = false;
       if (!silent) setRefreshing(false);
@@ -203,9 +189,7 @@ export default function DriverPanelPage({ toast }) {
   const refreshIncomingRequest = async () => {
     if (incomingSyncInFlightRef.current) return;
     if (document.visibilityState === "hidden") return;
-
     incomingSyncInFlightRef.current = true;
-
     try {
       const req = await getIncomingRideRequest();
       setIncomingRequest(req || null);
@@ -217,10 +201,7 @@ export default function DriverPanelPage({ toast }) {
   };
 
   const refreshDriverPanel = async ({ silent = false } = {}) => {
-    await Promise.all([
-      refreshRides({ silent }),
-      refreshIncomingRequest(),
-    ]);
+    await Promise.all([refreshRides({ silent }), refreshIncomingRequest()]);
   };
 
   useEffect(() => {
@@ -230,31 +211,22 @@ export default function DriverPanelPage({ toast }) {
   useEffect(() => {
     if (!currentRide) return;
     if (rideStage === "rating") return;
-
     const nextStage = getDriverRideStage(currentRide, ratedRideIds);
-    if (nextStage !== rideStage) {
-      setRideStage(nextStage);
-    }
+    if (nextStage !== rideStage) setRideStage(nextStage);
   }, [currentRide, ratedRideIds, rideStage]);
 
   useEffect(() => {
     if (!isDriver) return undefined;
-
     refreshWallet();
   }, [isDriver]);
 
   useEffect(() => {
     if (!isDriver) return undefined;
-
     refreshDriverPanel();
-
     const intervalId = window.setInterval(() => {
       refreshDriverPanel({ silent: true });
     }, POLL_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
+    return () => window.clearInterval(intervalId);
   }, [isDriver, toast]);
 
   useEffect(() => {
@@ -262,10 +234,26 @@ export default function DriverPanelPage({ toast }) {
     refreshRides({ silent: true });
   }, [ratedRideIds, isDriver]);
 
+  // FIX BUG-02: Send driver location immediately on mount (one-shot getCurrentPosition)
+  // before starting the continuous watchPosition. Without this, a newly-opened driver
+  // panel has NULL location in the DB for the first 5-30 seconds, making the driver
+  // invisible to all ride-request matching queries during that window.
   useEffect(() => {
-    if (!isDriver) return undefined;
-    if (!navigator.geolocation) return undefined;
+    if (!isDriver || !navigator.geolocation) return undefined;
 
+    // Immediate one-shot — fast, low accuracy is fine just to register the driver
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updateDriverLocation(
+          position.coords.longitude,
+          position.coords.latitude
+        ).catch(() => {});
+      },
+      (err) => console.warn("Initial driver location fix failed:", err),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }
+    );
+
+    // Continuous high-accuracy watch for ongoing location updates
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         updateDriverLocation(
@@ -273,7 +261,7 @@ export default function DriverPanelPage({ toast }) {
           position.coords.latitude
         ).catch(() => {});
       },
-      (error) => console.error("Location error:", error),
+      (error) => console.error("Location watch error:", error),
       { enableHighAccuracy: true }
     );
 
@@ -299,22 +287,21 @@ export default function DriverPanelPage({ toast }) {
 
   const handleAccept = (reqIdParam) => {
     const requestId = Number(reqIdParam);
-
     if (!requestId) {
       toast.error("Invalid ride request ID");
       return;
     }
-
     handleAction(
       () => acceptRide(requestId),
       "Ride accepted!",
       (ride) => {
-        fetch('/api/mock/clear', { method: 'POST' }).catch(() => {});
+        // FIX BUG-01: Removed fetch('/api/mock/clear') — that was a dev-only
+        // Vite middleware endpoint that doesn't exist in production.
         setIncomingRequest(null);
         setCurrentRide(ride);
         setRideStage(getDriverRideStage(ride, ratedRideIdsRef.current));
         setOtp("");
-      },
+      }
     );
   };
 
@@ -323,16 +310,8 @@ export default function DriverPanelPage({ toast }) {
     const normalizedOtp = normalizeOtpValue(otp);
     const expectedOtp = normalizeOtpValue(currentRide?.otp);
 
-    if (!rideId) {
-      toast.error("No confirmed ride selected");
-      return;
-    }
-
-    if (!normalizedOtp) {
-      toast.error("Enter the rider OTP before starting the trip");
-      return;
-    }
-
+    if (!rideId) { toast.error("No confirmed ride selected"); return; }
+    if (!normalizedOtp) { toast.error("Enter the rider OTP before starting the trip"); return; }
     if (expectedOtp && normalizedOtp !== expectedOtp) {
       toast.error("Entered OTP does not match the confirmed trip OTP");
       return;
@@ -341,20 +320,13 @@ export default function DriverPanelPage({ toast }) {
     handleAction(
       () => startRide(rideId, normalizedOtp),
       "Ride started!",
-      () => {
-        setRideStage("started");
-        setOtp("");
-      },
+      () => { setRideStage("started"); setOtp(""); }
     );
   };
 
   const handleEnd = () => {
     const rideId = Number(currentRide?.id);
-
-    if (!rideId) {
-      toast.error("No ongoing ride selected");
-      return;
-    }
+    if (!rideId) { toast.error("No ongoing ride selected"); return; }
 
     setActionLoading(true);
     endRide(rideId)
@@ -370,56 +342,40 @@ export default function DriverPanelPage({ toast }) {
         const message = error.message || "Action failed";
         const normalized = message.toLowerCase();
         const paymentMethod = String(currentRide?.paymentMethod || "").toUpperCase();
-
         if (normalized.includes("insufficient") && normalized.includes("balance")) {
           if (paymentMethod === "CASH") {
-            toast.error("This cash ride was blocked by the backend with an insufficient balance check. Cash rides should end without wallet deduction.");
+            toast.error("Cash rides should end without wallet deduction. Check backend logs.");
             return;
           }
-
           if (paymentMethod === "WALLET") {
-            toast.error("This wallet ride cannot be ended because the rider wallet balance is too low.");
+            toast.error("Rider wallet balance is too low to end this ride.");
             return;
           }
         }
-
         toast.error(message);
       })
-      .finally(() => {
-        setActionLoading(false);
-      });
+      .finally(() => setActionLoading(false));
   };
 
   const handleCancel = () => {
     const rideId = Number(currentRide?.id);
-
-    if (!rideId) {
-      toast.error("No confirmed ride selected");
-      return;
-    }
-
+    if (!rideId) { toast.error("No confirmed ride selected"); return; }
     handleAction(
       () => cancelRideDriver(rideId),
       "Ride cancelled",
-      () => {
-        setCurrentRide(null);
-        setRideStage("idle");
-        setOtp("");
-      },
+      () => { setCurrentRide(null); setRideStage("idle"); setOtp(""); }
     );
   };
-  const handleWalletAction = async (action) => {
-    const amount = Number.parseFloat(walletAmount);
 
+  const handleWalletAction = async () => {
+    const amount = Number.parseFloat(walletAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid wallet amount");
       return;
     }
-
     setWalletActionLoading(true);
     try {
       const response = await withdrawMoneyFromDriverWallet(amount);
-
       setWallet(response);
       setWalletAmount("");
       toast.success("Money withdrawn from driver wallet");
@@ -434,47 +390,50 @@ export default function DriverPanelPage({ toast }) {
   const mergedWalletTransactions = useMemo(() => {
     const tx = wallet?.transactions ? [...wallet.transactions] : [];
     if (liveRides && liveRides.length > 0) {
-      const cashRides = liveRides.filter(r => r.paymentMethod === 'CASH' && r.rideStatus === 'ENDED');
-      cashRides.forEach(ride => {
+      const cashRides = liveRides.filter(
+        (r) => r.paymentMethod === "CASH" && r.rideStatus === "ENDED"
+      );
+      cashRides.forEach((ride) => {
         const driverEarnings = getDriverEarnings(ride.fare);
-        // Check if we already have it to avoid duplicates if backend ever adds it
-        if (!tx.find(t => t.id === `cash_${ride.id}`)) {
+        if (!tx.find((t) => t.id === `cash_${ride.id}`)) {
           tx.push({
             id: `cash_${ride.id}`,
-            transactionType: 'CREDIT',
-            transactionMethod: 'CASH_HANDOVER',
+            transactionType: "CREDIT",
+            transactionMethod: "CASH_HANDOVER",
             amount: driverEarnings,
             timeStamp: ride.endedAt || ride.createdTime || new Date().toISOString(),
-            ride
+            ride,
           });
         }
       });
-      return tx.sort((a,b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+      return tx.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
     }
     return tx;
   }, [wallet, liveRides]);
 
   const handleRate = async () => {
     const rideId = Number(currentRide?.id);
-
-    if (!rideId) {
-      toast.error("No ended ride selected");
-      return;
-    }
-
+    if (!rideId) { toast.error("No ended ride selected"); return; }
     setActionLoading(true);
     try {
       await rateRiderByBody(rideId, rating);
       toast.success("Rider rated!");
-      setRatedRideIds((current) => (current.includes(rideId) ? current : [...current, rideId]));
+      setRatedRideIds((current) =>
+        current.includes(rideId) ? current : [...current, rideId]
+      );
       setCurrentRide(null);
       setRideStage("idle");
       setRating(0);
       await refreshDriverPanel({ silent: true });
     } catch (error) {
       const msg = error.message || "";
-      if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("not rate again")) {
-        setRatedRideIds((current) => (current.includes(rideId) ? current : [...current, rideId]));
+      if (
+        msg.toLowerCase().includes("already") ||
+        msg.toLowerCase().includes("not rate again")
+      ) {
+        setRatedRideIds((current) =>
+          current.includes(rideId) ? current : [...current, rideId]
+        );
         setCurrentRide(null);
         setRideStage("idle");
         setRating(0);
@@ -489,7 +448,10 @@ export default function DriverPanelPage({ toast }) {
 
   const handleSkipRating = () => {
     const rideId = Number(currentRide?.id);
-    if (rideId) setRatedRideIds((current) => (current.includes(rideId) ? current : [...current, rideId]));
+    if (rideId)
+      setRatedRideIds((current) =>
+        current.includes(rideId) ? current : [...current, rideId]
+      );
     setCurrentRide(null);
     setRideStage("idle");
     setRating(0);
@@ -498,9 +460,13 @@ export default function DriverPanelPage({ toast }) {
   const isCurrentRideRated =
     ratedRideIds.includes(Number(currentRide?.id)) || currentRide?.riderRating != null;
   const activeDriverRides = liveRides.filter((ride) =>
-    [RIDE_STATUS.CONFIRMED, RIDE_STATUS.ONGOING].includes(normalizeRideStatus(ride.rideStatus))
+    [RIDE_STATUS.CONFIRMED, RIDE_STATUS.ONGOING].includes(
+      normalizeRideStatus(ride.rideStatus)
+    )
   ).length;
-  const completedDriverRides = liveRides.filter((ride) => normalizeRideStatus(ride.rideStatus) === RIDE_STATUS.ENDED).length;
+  const completedDriverRides = liveRides.filter(
+    (ride) => normalizeRideStatus(ride.rideStatus) === RIDE_STATUS.ENDED
+  ).length;
   const availableRequestCount = incomingRequest ? 1 : 0;
 
   if (!isDriver) {
@@ -551,13 +517,7 @@ export default function DriverPanelPage({ toast }) {
         />
         <div
           className="app-orb alt"
-          style={{
-            top: -36,
-            left: "10%",
-            width: 170,
-            height: 170,
-            background: "#fff",
-          }}
+          style={{ top: -36, left: "10%", width: 170, height: 170, background: "#fff" }}
         />
         <div className="page-wrap">
           <span className="badge badge-yellow" style={{ marginBottom: "0.75rem" }}>
@@ -587,18 +547,25 @@ export default function DriverPanelPage({ toast }) {
             </div>
             <div className="info-tile">
               <div className="info-tile-label">Wallet balance</div>
-              <div className="info-tile-value">{walletLoading ? "..." : formatCurrency(wallet?.balance)}</div>
+              <div className="info-tile-value">
+                {walletLoading ? "..." : formatCurrency(wallet?.balance)}
+              </div>
             </div>
           </div>
 
+          {/* Wallet section */}
           <div className="card premium-card fade-in" style={{ marginBottom: "1.25rem" }}>
             <div className="section-heading">
               <div className="section-heading-copy">
                 <h3>Driver wallet</h3>
-                <p>Wallet ride earnings land here automatically. Withdraw your balance whenever you are ready.</p>
+                <p>Wallet ride earnings land here automatically. Withdraw whenever you are ready.</p>
               </div>
-              <span className="badge badge-blue" style={{ display: 'flex', alignItems: 'center', height: 28 }}>
-                {walletLoading ? <div className="skeleton-shimmer" style={{ width: 60, height: 14, borderRadius: 4 }} /> : formatCurrency(wallet?.balance)}
+              <span className="badge badge-blue" style={{ display: "flex", alignItems: "center", height: 28 }}>
+                {walletLoading ? (
+                  <div className="skeleton-shimmer" style={{ width: 60, height: 14, borderRadius: 4 }} />
+                ) : (
+                  formatCurrency(wallet?.balance)
+                )}
               </span>
             </div>
 
@@ -610,7 +577,7 @@ export default function DriverPanelPage({ toast }) {
                 onChange={(e) => setWalletAmount(e.target.value)}
                 style={{ flex: 1, minWidth: 220 }}
               />
-              <button className="btn btn-ghost" onClick={() => handleWalletAction("withdraw")} disabled={walletActionLoading}>
+              <button className="btn btn-ghost" onClick={handleWalletAction} disabled={walletActionLoading}>
                 {walletActionLoading ? <span className="spinner" /> : "Withdraw"}
               </button>
             </div>
@@ -633,14 +600,27 @@ export default function DriverPanelPage({ toast }) {
                   >
                     <div>
                       <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                        {transaction.transactionMethod === 'CASH_HANDOVER' ? `${formatRideId(transaction.ride?.id)} (CASH)` : (transaction.ride?.id ? formatRideId(transaction.ride.id) : transaction.transactionMethod)}
+                        {transaction.transactionMethod === "CASH_HANDOVER"
+                          ? `${formatRideId(transaction.ride?.id)} (CASH)`
+                          : transaction.ride?.id
+                          ? formatRideId(transaction.ride.id)
+                          : transaction.transactionMethod}
                       </div>
                       <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 4 }}>
-                        {transaction.transactionMethod === 'CASH_HANDOVER' ? 'In-Person Cash Collection' : transaction.transactionType} • {transaction.timeStamp ? formatDateTime(transaction.timeStamp) : "Just now"}
+                        {transaction.transactionMethod === "CASH_HANDOVER"
+                          ? "In-Person Cash Collection"
+                          : transaction.transactionType}{" "}
+                        • {transaction.timeStamp ? formatDateTime(transaction.timeStamp) : "Just now"}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, color: transaction.transactionType === "CREDIT" ? "#0b8f55" : "#a93d3d" }}>
-                      {transaction.transactionType === "CREDIT" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        color: transaction.transactionType === "CREDIT" ? "#0b8f55" : "#a93d3d",
+                      }}
+                    >
+                      {transaction.transactionType === "CREDIT" ? "+" : "-"}
+                      {formatCurrency(transaction.amount)}
                     </div>
                   </div>
                 ))}
@@ -648,75 +628,98 @@ export default function DriverPanelPage({ toast }) {
             )}
           </div>
 
+          {/* Incoming ride request */}
           {!(rideStage === "accepted" || rideStage === "started") && incomingRequest && (
-            <div className="card premium-card fade-in" style={{ marginBottom: "1.25rem", border: "2px solid var(--brand)" }}>
+            <div
+              className="card premium-card fade-in"
+              style={{ marginBottom: "1.25rem", border: "2px solid var(--brand)" }}
+            >
               <div className="section-heading">
                 <div className="section-heading-copy">
-                  <h3 style={{ marginBottom: 4 }}>
-                  🚨 New ride request!
-                  </h3>
+                  <h3 style={{ marginBottom: 4 }}>🚨 New ride request!</h3>
                   <p>A rider nearby is looking for an empty cab.</p>
                 </div>
-              <span className={`badge ${refreshing ? "badge-blue" : "badge-gray"}`}>
-                {refreshing ? "Refreshing..." : "Live"}
-              </span>
+                <span className={`badge ${refreshing ? "badge-blue" : "badge-gray"}`}>
+                  {refreshing ? "Refreshing..." : "Live"}
+                </span>
               </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ padding: "12px", background: "var(--surface-2)", borderRadius: 12 }}>
-                <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <div className="route-dot dot-pickup" />
-                  <span style={{ fontSize: "0.88rem", fontWeight: 500 }}><LocationName coords={incomingRequest.pickupLocation?.coordinates} /></span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ padding: "12px", background: "var(--surface-2)", borderRadius: 12 }}>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                    <div className="route-dot dot-pickup" />
+                    <span style={{ fontSize: "0.88rem", fontWeight: 500 }}>
+                      <LocationName coords={incomingRequest.pickupLocation?.coordinates} />
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div className="route-dot dot-drop" />
+                    <span style={{ fontSize: "0.88rem", fontWeight: 500 }}>
+                      <LocationName coords={incomingRequest.dropOffLocation?.coordinates} />
+                    </span>
+                  </div>
+                  <div style={{ height: "180px", margin: "1rem 0" }}>
+                    <RideMap
+                      pickup={{
+                        lng: incomingRequest.pickupLocation?.coordinates[0],
+                        lat: incomingRequest.pickupLocation?.coordinates[1],
+                      }}
+                      drop={{
+                        lng: incomingRequest.dropOffLocation?.coordinates[0],
+                        lat: incomingRequest.dropOffLocation?.coordinates[1],
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: 12, fontWeight: 700, fontSize: "1.2rem", fontFamily: "Clash Display" }}>
+                    {incomingRequest.fare
+                      ? `₹${getDriverEarnings(incomingRequest.fare).toFixed(0)}`
+                      : "Fare pending"}
+                    <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--muted)", marginLeft: 8 }}>
+                      via {incomingRequest.paymentMethod}
+                    </span>
+                    {incomingRequest.fare && (
+                      <div style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 400, marginTop: 2 }}>
+                        Your earnings · {commissionLabel}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: 'center' }}>
-                  <div className="route-dot dot-drop" />
-                  <span style={{ fontSize: "0.88rem", fontWeight: 500 }}><LocationName coords={incomingRequest.dropOffLocation?.coordinates} /></span>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <button
+                    className="btn btn-dark hover-lift"
+                    onClick={() => handleAccept(incomingRequest.id)}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? <span className="spinner spinner-white" /> : "Accept request →"}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setIncomingRequest(null)}
+                    disabled={actionLoading}
+                  >
+                    Ignore
+                  </button>
                 </div>
-                
-                <div style={{ height: "180px", margin: "1rem 0" }}>
-                  <RideMap 
-                    pickup={{ 
-                      lng: incomingRequest.pickupLocation?.coordinates[0], 
-                      lat: incomingRequest.pickupLocation?.coordinates[1] 
-                    }} 
-                    drop={{ 
-                      lng: incomingRequest.dropOffLocation?.coordinates[0], 
-                      lat: incomingRequest.dropOffLocation?.coordinates[1] 
-                    }} 
-                  />
-                </div>
-
-                <div style={{ marginTop: 12, fontWeight: 700, fontSize: "1.2rem", fontFamily: "Clash Display" }}>
-                  {incomingRequest.fare ? `₹${getDriverEarnings(incomingRequest.fare).toFixed(0)}` : "Fare pending"}
-                  <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--muted)', marginLeft: 8 }}>via {incomingRequest.paymentMethod}</span>
-                  {incomingRequest.fare && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
-                      Your earnings · {commissionLabel}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <button className="btn btn-dark hover-lift" onClick={() => handleAccept(incomingRequest.id)} disabled={actionLoading}>
-                  {actionLoading ? <span className="spinner spinner-white" /> : "Accept request →"}
-                </button>
-                <button className="btn btn-ghost" onClick={() => { fetch('/api/mock/clear', { method: 'POST' }).catch(() => {}); setIncomingRequest(null); }} disabled={actionLoading}>
-                  Ignore
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
+          {/* Current ride details */}
           {currentRide && (
             <div className="card premium-card ride-info" style={{ marginBottom: "1.25rem" }}>
               <div className="section-heading">
                 <div className="section-heading-copy">
-                  <h3>Selected trip {formatRideId(currentRide.id)}</h3>
+                  <h3>
+                    Selected trip {formatRideId(currentRide.id)}
+                  </h3>
                   <p>
-                    Rider: {currentRide.rider?.user?.name || (currentRide.rider?.id ? formatRiderId(currentRide.rider.id) : "N/A")}
+                    Rider:{" "}
+                    {currentRide.rider?.user?.name ||
+                      (currentRide.rider?.id ? formatRiderId(currentRide.rider.id) : "N/A")}
                     {currentRide.rider?.user?.phoneNumber && (
-                      <a href={`tel:${toDialablePhoneNumber(currentRide.rider.user.phoneNumber)}`} style={{ marginLeft: 8, color: 'var(--text-primary)' }}>
+                      <a
+                        href={`tel:${toDialablePhoneNumber(currentRide.rider.user.phoneNumber)}`}
+                        style={{ marginLeft: 8, color: "var(--text-primary)" }}
+                      >
                         📞 {formatPhoneNumber(currentRide.rider.user.phoneNumber)}
                       </a>
                     )}
@@ -726,7 +729,6 @@ export default function DriverPanelPage({ toast }) {
                   {currentRide.rideStatus}
                 </span>
               </div>
-
               <div
                 style={{
                   display: "grid",
@@ -734,30 +736,43 @@ export default function DriverPanelPage({ toast }) {
                   gap: 12,
                 }}
               >
-                <div style={{ display: "flex", gap: 6 }}>📍 Pickup: <strong><LocationName coords={currentRide.pickupLocation?.coordinates} /></strong></div>
-                <div style={{ display: "flex", gap: 6 }}>🏁 Drop: <strong><LocationName coords={currentRide.dropOffLocation?.coordinates} /></strong></div>
-                <div>💳 Payment: <strong>{currentRide.paymentMethod || "Unknown"}</strong></div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  📍 Pickup:{" "}
+                  <strong>
+                    <LocationName coords={currentRide.pickupLocation?.coordinates} />
+                  </strong>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  🏁 Drop:{" "}
+                  <strong>
+                    <LocationName coords={currentRide.dropOffLocation?.coordinates} />
+                  </strong>
+                </div>
+                <div>
+                  💳 Payment: <strong>{currentRide.paymentMethod || "Unknown"}</strong>
+                </div>
                 <div>
                   💰 Your earnings:{" "}
-                  <strong>{currentRide.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}</strong>
+                  <strong>
+                    {currentRide.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}
+                  </strong>
                   {currentRide.fare && (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: 6, fontWeight: 400 }}>
+                    <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 6, fontWeight: 400 }}>
                       ({commissionLabel})
                     </span>
                   )}
                 </div>
               </div>
-
               <div style={{ height: "240px", marginTop: "1rem" }}>
-                <RideMap 
-                  pickup={{ 
-                    lng: currentRide.pickupLocation?.coordinates[0], 
-                    lat: currentRide.pickupLocation?.coordinates[1] 
-                  }} 
-                  drop={{ 
-                    lng: currentRide.dropOffLocation?.coordinates[0], 
-                    lat: currentRide.dropOffLocation?.coordinates[1] 
-                  }} 
+                <RideMap
+                  pickup={{
+                    lng: currentRide.pickupLocation?.coordinates[0],
+                    lat: currentRide.pickupLocation?.coordinates[1],
+                  }}
+                  drop={{
+                    lng: currentRide.dropOffLocation?.coordinates[0],
+                    lat: currentRide.dropOffLocation?.coordinates[1],
+                  }}
                 />
               </div>
             </div>
@@ -792,10 +807,15 @@ export default function DriverPanelPage({ toast }) {
                 <button className="btn btn-success" onClick={handleStart} disabled={actionLoading || !otp}>
                   {actionLoading ? <span className="spinner spinner-white" /> : "Start ride"}
                 </button>
-                <button 
-                  className="btn btn-outline hover-shrink" 
-                  style={{ color: 'var(--text-primary)', borderColor: 'var(--surface-2)' }}
-                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentRide?.pickupLocation?.coordinates[1]},${currentRide?.pickupLocation?.coordinates[0]}&travelmode=driving`, '_blank')}
+                <button
+                  className="btn btn-outline hover-shrink"
+                  style={{ color: "var(--text-primary)", borderColor: "var(--surface-2)" }}
+                  onClick={() =>
+                    window.open(
+                      `https://www.google.com/maps/dir/?api=1&destination=${currentRide?.pickupLocation?.coordinates[1]},${currentRide?.pickupLocation?.coordinates[0]}&travelmode=driving`,
+                      "_blank"
+                    )
+                  }
                 >
                   🗺️ Navigate to Pickup
                 </button>
@@ -817,9 +837,14 @@ export default function DriverPanelPage({ toast }) {
                 <button className="btn btn-primary" onClick={handleEnd} disabled={actionLoading}>
                   {actionLoading ? <span className="spinner" /> : "End ride"}
                 </button>
-                <button 
-                  className="btn btn-dark hover-shrink" 
-                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentRide?.dropOffLocation?.coordinates[1]},${currentRide?.dropOffLocation?.coordinates[0]}&travelmode=driving`, '_blank')}
+                <button
+                  className="btn btn-dark hover-shrink"
+                  onClick={() =>
+                    window.open(
+                      `https://www.google.com/maps/dir/?api=1&destination=${currentRide?.dropOffLocation?.coordinates[1]},${currentRide?.dropOffLocation?.coordinates[0]}&travelmode=driving`,
+                      "_blank"
+                    )
+                  }
                 >
                   🗺️ Navigate to Dropoff
                 </button>
@@ -836,7 +861,10 @@ export default function DriverPanelPage({ toast }) {
               </p>
               <DriverRouteSummary ride={currentRide} />
               <div style={{ marginBottom: "1rem" }}>
-                Fare earned: <strong>{currentRide?.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}</strong>
+                Fare earned:{" "}
+                <strong>
+                  {currentRide?.fare ? `₹${getDriverEarnings(currentRide.fare).toFixed(0)}` : "Pending"}
+                </strong>
               </div>
               <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
                 <button className="btn btn-primary" onClick={() => setRideStage("rating")}>
@@ -848,7 +876,6 @@ export default function DriverPanelPage({ toast }) {
               </div>
             </div>
           )}
-
 
           {rideStage === "rating" && (
             <div className="status-card fade-in center" style={{ marginBottom: "1.25rem" }}>
@@ -875,7 +902,9 @@ export default function DriverPanelPage({ toast }) {
                   </button>
                 ))}
               </div>
-              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: "1rem" }}>
+              <div
+                style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: "1rem" }}
+              >
                 <button className="btn btn-dark" onClick={handleRate} disabled={actionLoading || !rating}>
                   {actionLoading ? <span className="spinner spinner-white" /> : "Submit rating"}
                 </button>
@@ -886,8 +915,21 @@ export default function DriverPanelPage({ toast }) {
             </div>
           )}
 
-          <div className="card premium-card fade-in" style={{ marginTop: "2rem", marginBottom: "2rem", padding: "1.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 12 }}>
+          {/* Ride history */}
+          <div
+            className="card premium-card fade-in"
+            style={{ marginTop: "2rem", marginBottom: "2rem", padding: "1.5rem" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1.25rem",
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
               <div>
                 <h3 style={{ fontSize: "1.1rem", marginBottom: 4 }}>Ride history</h3>
                 <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
@@ -908,7 +950,8 @@ export default function DriverPanelPage({ toast }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {liveRides.map((ride) => {
                   const status = normalizeRideStatus(ride.rideStatus);
-                  const isCompleted = status === RIDE_STATUS.ENDED || status === RIDE_STATUS.CANCELLED;
+                  const isCompleted =
+                    status === RIDE_STATUS.ENDED || status === RIDE_STATUS.CANCELLED;
                   const isSelected = ride.id === currentRide?.id;
 
                   return (
@@ -928,27 +971,53 @@ export default function DriverPanelPage({ toast }) {
                         borderRadius: 12,
                         cursor: "pointer",
                         textAlign: "left",
-                        transition: "all 0.2s ease"
+                        transition: "all 0.2s ease",
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 120 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontFamily: "Clash Display", fontWeight: 600 }}>{formatRideId(ride.id)}</span>
-                          <span className={`badge ${getRideStatusBadgeClass(ride.rideStatus)}`} style={{ padding: "2px 6px", fontSize: "0.65rem" }}>
+                        <div
+                          style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}
+                        >
+                          <span style={{ fontFamily: "Clash Display", fontWeight: 600 }}>
+                            {formatRideId(ride.id)}
+                          </span>
+                          <span
+                            className={`badge ${getRideStatusBadgeClass(ride.rideStatus)}`}
+                            style={{ padding: "2px 6px", fontSize: "0.65rem" }}
+                          >
                             {ride.rideStatus}
                           </span>
                         </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <div
+                          style={{
+                            fontSize: "0.8rem",
+                            color: "var(--muted)",
+                            display: "flex",
+                            gap: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
                           <span>Rider: {ride.rider?.user?.name || "Unknown"}</span>
                           <span>{ride.createdTime ? formatDateTime(ride.createdTime) : "Recent"}</span>
                         </div>
                       </div>
-                      
                       <div style={{ textAlign: "right", paddingLeft: 16 }}>
-                        <div style={{ fontWeight: 700, color: isCompleted ? "var(--text-primary)" : "var(--muted)" }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            color: isCompleted ? "var(--text-primary)" : "var(--muted)",
+                          }}
+                        >
                           {ride.fare ? `₹${getDriverEarnings(ride.fare).toFixed(0)}` : "—"}
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2, textTransform: "uppercase" }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--muted)",
+                            marginTop: 2,
+                            textTransform: "uppercase",
+                          }}
+                        >
                           {ride.paymentMethod || "N/A"}
                         </div>
                       </div>
@@ -958,7 +1027,6 @@ export default function DriverPanelPage({ toast }) {
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>
