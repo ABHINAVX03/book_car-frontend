@@ -70,19 +70,29 @@ const getVisibleDriverRides = (rides = [], ratedRideIds = []) =>
   rides.filter((ride) => !isDriverRideCompleted(ride, ratedRideIds));
 
 const selectNextDriverRide = (rides = [], currentRideId, ratedRideIds = []) => {
+  // 1. Try to find the ride that was previously selected
   const matchingCurrentRide = currentRideId
     ? rides.find((ride) => ride.id === currentRideId)
     : null;
   if (matchingCurrentRide) return matchingCurrentRide;
 
   const visibleRides = getVisibleDriverRides(rides, ratedRideIds);
-  return (
-    visibleRides.find((ride) =>
-      ACTIVE_DRIVER_STATUSES.includes(normalizeRideStatus(ride.rideStatus))
-    ) ||
-    visibleRides[0] ||
-    null
+  if (!visibleRides.length) return null;
+
+  // 2. Prioritize ONGOING rides (highest priority)
+  const ongoing = visibleRides.find(
+    (ride) => normalizeRideStatus(ride.rideStatus) === RIDE_STATUS.ONGOING
   );
+  if (ongoing) return ongoing;
+
+  // 3. Prioritize CONFIRMED rides (accepted but not started)
+  const confirmed = visibleRides.find(
+    (ride) => normalizeRideStatus(ride.rideStatus) === RIDE_STATUS.CONFIRMED
+  );
+  if (confirmed) return confirmed;
+
+  // 4. Fall back to the most recent ride in history
+  return visibleRides[0] || null;
 };
 
 const DriverRouteSummary = ({ ride }) => {

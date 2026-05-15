@@ -592,7 +592,9 @@ export default function BookRidePage({ toast }) {
       });
       rzp.open();
     } catch (err) {
-      toast.error(err.message || "Could not initiate Razorpay payment");
+      console.error("Razorpay initiation error:", err);
+      const detail = err.message || "Unknown error";
+      toast.error(`Could not initiate Razorpay: ${detail}`);
       setRazorpayPaymentLoading(false);
     }
   };
