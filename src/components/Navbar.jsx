@@ -37,7 +37,15 @@ export default function Navbar({ toast }) {
     ? user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) {
+      console.warn("Backend logout failed:", e);
+    }
     logout();
     toast?.success("You have been signed out.");
     navigate("/");

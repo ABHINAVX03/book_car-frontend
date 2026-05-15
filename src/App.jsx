@@ -19,11 +19,18 @@ import AdminVerificationDashboard from "./pages/AdminVerificationDashboard";
 
 const PENDING_DRIVER_VEHICLE_KEY = "bookcar-pending-driver-vehicle";
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, token } = useAuth();
+  const location = useLocation();
+
   if (!user || !token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
+
+  if (allowedRoles.length > 0 && !allowedRoles.some(role => user.roles?.includes(role))) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 };
 
@@ -83,10 +90,10 @@ function AppInner() {
             <ProtectedRoute><DashboardPage toast={toast} /></ProtectedRoute>
           } />
           <Route path="book" element={
-            <ProtectedRoute><BookRidePage toast={toast} /></ProtectedRoute>
+            <ProtectedRoute allowedRoles={['RIDER']}><BookRidePage toast={toast} /></ProtectedRoute>
           } />
           <Route path="driver" element={
-            <ProtectedRoute><DriverPanelPage toast={toast} /></ProtectedRoute>
+            <ProtectedRoute allowedRoles={['DRIVER']}><DriverPanelPage toast={toast} /></ProtectedRoute>
           } />
           <Route path="rides" element={
             <ProtectedRoute><RidesPage toast={toast} /></ProtectedRoute>
@@ -95,15 +102,20 @@ function AppInner() {
             <ProtectedRoute><ProfilePage toast={toast} /></ProtectedRoute>
           } />
           <Route path="support" element={<SupportPage />} />
+          
+          {/* Admin Protected Routes */}
           <Route path="admin/revenue" element={
-            <ProtectedRoute><AdminRevenuePage toast={toast} /></ProtectedRoute>
-          } />
-          <Route path="driver/verify" element={
-            <ProtectedRoute><DriverVerificationPage toast={toast} /></ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ADMIN']}><AdminRevenuePage toast={toast} /></ProtectedRoute>
           } />
           <Route path="admin/verify" element={
-            <ProtectedRoute><AdminVerificationDashboard toast={toast} /></ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ADMIN']}><AdminVerificationDashboard toast={toast} /></ProtectedRoute>
           } />
+
+          {/* Driver Onboarding/Verification */}
+          <Route path="driver/verify" element={
+            <ProtectedRoute allowedRoles={['DRIVER']}><DriverVerificationPage toast={toast} /></ProtectedRoute>
+          } />
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

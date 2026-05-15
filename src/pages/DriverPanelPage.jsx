@@ -284,51 +284,65 @@ export default function DriverPanelPage({ toast }) {
 
   useEffect(() => {
     if (!isDriver) return undefined;
+    
     refreshDriverPanel();
-    const intervalId = window.setInterval(() => {
-      refreshDriverPanel({ silent: true });
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
-  }, [isDriver, toast]);
+    
+    let timerId;
+    const poll = async () => {
+      await refreshDriverPanel({ silent: true });
+      
+      // Adaptive backoff: 
+      // - 2s if there's an incoming request (fast reaction needed)
+      // - 3s if ride is ongoing
+      // - 6s if idle online
+      // - 15s if offline
+      let nextInterval = 6000;
+      if (incomingRequest) nextInterval = 2000;
+      else if (rideStage === "started") nextInterval = 3000;
+      else if (!isAvailable) nextInterval = 15000;
+      
+      timerId = setTimeout(poll, nextInterval);
+    };
+
+    timerId = setTimeout(poll, POLL_INTERVAL_MS);
+    return () => clearTimeout(timerId);
+  }, [isDriver, incomingRequest, rideStage, isAvailable, toast]);
 
   useEffect(() => {
     if (!isDriver) return undefined;
     refreshRides({ silent: true });
   }, [ratedRideIds, isDriver]);
 
-  // FIX BUG-02: Send driver location immediately on mount (one-shot getCurrentPosition)
-  // before starting the continuous watchPosition. Without this, a newly-opened driver
-  // panel has NULL location in the DB for the first 5-30 seconds, making the driver
-  // invisible to all ride-request matching queries during that window.
+  // FIX BUG-02: Send driver location with throttling to save battery.
   useEffect(() => {
-    if (!isDriver || !navigator.geolocation) return undefined;
+    if (!isDriver || !navigator.geolocation || !isAvailable) return undefined;
 
-    // Immediate one-shot — fast, low accuracy is fine just to register the driver
+    let lastUpdateTimestamp = 0;
+    const THROTTLE_MS = rideStage === "started" ? 10000 : 30000;
+
+    const sendLocation = (coords) => {
+      const now = Date.now();
+      if (now - lastUpdateTimestamp < THROTTLE_MS) return;
+      
+      lastUpdateTimestamp = now;
+      updateDriverLocation(coords.longitude, coords.latitude).catch(() => {});
+    };
+
+    // Initial register
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        updateDriverLocation(
-          position.coords.longitude,
-          position.coords.latitude
-        ).catch(() => {});
-      },
+      (position) => sendLocation(position.coords),
       (err) => console.warn("Initial driver location fix failed:", err),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }
     );
 
-    // Continuous high-accuracy watch for ongoing location updates
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        updateDriverLocation(
-          position.coords.longitude,
-          position.coords.latitude
-        ).catch(() => {});
-      },
+      (position) => sendLocation(position.coords),
       (error) => console.error("Location watch error:", error),
       { enableHighAccuracy: true }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [isDriver]);
+  }, [isDriver, isAvailable, rideStage]);
 
   const handleAction = async (fn, successMsg, onSuccess) => {
     setActionLoading(true);

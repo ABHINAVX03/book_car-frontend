@@ -56,7 +56,11 @@ export default function SignupPage({ toast }) {
     setInlineFeedback(null);
     setLoading(true);
     try {
-      const payload = { ...form, phoneNumber: formatPhoneNumber(form.phoneNumber) };
+      const payload = { 
+        ...form, 
+        phoneNumber: formatPhoneNumber(form.phoneNumber),
+        role: mode.toUpperCase() 
+      };
       const user = await signup(payload);
       setCreatedUser(user);
       const uid = user?.id ?? user?.userId ?? user?.data?.id;
@@ -89,7 +93,7 @@ export default function SignupPage({ toast }) {
             name: user?.name || form.name,
             email: user?.email || form.email,
             phoneNumber: user?.phoneNumber || payload.phoneNumber,
-            roles: ["RIDER"],
+            roles: ["DRIVER"],
           },
           token,
         );
@@ -115,12 +119,11 @@ export default function SignupPage({ toast }) {
           }
         }
 
-        const mergedRoles = Array.from(new Set([...(currentUser?.roles || roles || []), ...roles]));
         login({
           name: profileUser?.user?.name || profileUser?.name || user.name,
           email: profileUser?.user?.email || profileUser?.email || user.email,
           phoneNumber: profileUser?.user?.phoneNumber || profileUser?.phoneNumber || user.phoneNumber || payload.phoneNumber,
-          roles: mergedRoles,
+          roles: roles,
         }, token);
         toast.success({
           title: `Welcome to BookCar, ${profileUser?.name || user.name}!`,

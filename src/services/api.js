@@ -1,6 +1,6 @@
 import { expireAuth, getStoredToken, isTokenExpired } from "../utils/authToken";
 
-const BASE_URL = "https://bookkaro-backend-spring-boot-production.up.railway.app";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app";
 
 let refreshPromise = null;
 
