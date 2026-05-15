@@ -9,6 +9,7 @@ import {
   FiMapPin,
   FiMenu,
   FiMoon,
+  FiShield,
   FiSun,
   FiTruck,
   FiUser,
@@ -49,6 +50,7 @@ export default function Navbar({ toast }) {
     { label: "Driver Panel", icon: FiTruck, path: "/driver", show: isDriver },
     { label: "My Rides", icon: FiMapPin, path: "/rides", show: Boolean(user) },
     { label: "Profile", icon: FiUser, path: "/profile", show: Boolean(user) },
+    { label: "Verify Drivers", icon: FiShield, path: "/admin/verify", show: isAdmin, isAdmin: true },
     { label: "Revenue", icon: FiBarChart2, path: "/admin/revenue", show: isAdmin, isAdmin: true },
   ].filter((item) => item.show);
 
