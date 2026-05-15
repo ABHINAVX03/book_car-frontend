@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { signup, login as apiLogin, onboardDriver, getRiderProfile, getDriverProfile } from "../services/api";
+import { signup, login as apiLogin, onboardDriver, getRiderProfile, getDriverProfile, sendOtp, verifyOtp } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { getFriendlyAuthError } from "../utils/errorMessages";
 import { formatPhoneNumber, isValidPhoneNumber, sanitizePhoneNumber } from "../utils/phone";
@@ -22,6 +22,11 @@ export default function SignupPage({ toast }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', phoneNumber: '' });
   const [vehicleId, setVehicleId] = useState('');
   const [vehicleType, setVehicleType] = useState('MINI');
+
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -131,6 +136,44 @@ export default function SignupPage({ toast }) {
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!isValidPhoneNumber(form.phoneNumber)) {
+      toast.error("Please enter a valid phone number first.");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      await sendOtp(formatPhoneNumber(form.phoneNumber));
+      setOtpSent(true);
+      toast.success("Verification code sent to your phone!");
+    } catch (e) {
+      toast.error(e.message || "Failed to send OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      toast.error("Enter a 6-digit code.");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const res = await verifyOtp(formatPhoneNumber(form.phoneNumber), otpCode);
+      if (res.valid) {
+        setIsPhoneVerified(true);
+        toast.success("Phone number verified!");
+      } else {
+        toast.error("Invalid verification code. Please try again.");
+      }
+    } catch (e) {
+      toast.error(e.message || "Verification failed");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleOnboard = async () => {
     if (!vehicleId) {
       const feedback = {
@@ -147,7 +190,7 @@ export default function SignupPage({ toast }) {
     setInlineFeedback(null);
     setLoading(true);
     try {
-      const driver = await onboardDriver(uid, vehicleId, vehicleType);
+      const driver = await onboardDriver(uid, vehicleId, vehicleType, formatPhoneNumber(form.phoneNumber));
       try {
         sessionStorage.removeItem(PENDING_DRIVER_VEHICLE_KEY);
       } catch {
@@ -330,15 +373,53 @@ export default function SignupPage({ toast }) {
                       type="tel"
                       placeholder="+91 9876543210"
                       value={form.phoneNumber}
-                      onChange={e => set('phoneNumber', sanitizePhoneNumber(e.target.value))}
+                      disabled={isPhoneVerified}
+                      onChange={e => {
+                        set('phoneNumber', sanitizePhoneNumber(e.target.value));
+                        if (otpSent) setOtpSent(false); // Reset if number changed
+                      }}
                       onBlur={() => {
                         if (form.phoneNumber) {
                           set('phoneNumber', formatPhoneNumber(form.phoneNumber));
                         }
                       }}
                     />
+                    {!isPhoneVerified && (
+                      <button 
+                        className="btn btn-ghost btn-sm" 
+                        style={{ position: 'absolute', right: 10, top: 8, fontSize: '0.7rem', padding: '4px 8px' }}
+                        onClick={handleSendOtp}
+                        disabled={otpLoading || !form.phoneNumber}
+                      >
+                        {otpLoading ? '...' : (otpSent ? 'Resend' : 'Send code')}
+                      </button>
+                    )}
+                    {isPhoneVerified && (
+                      <span style={{ position: 'absolute', right: 12, top: 12, color: 'var(--green)', fontSize: '0.8rem', fontWeight: 700 }}>
+                        ✓ Verified
+                      </span>
+                    )}
                   </div>
                 </div>
+
+                {otpSent && !isPhoneVerified && (
+                  <div className="animate-fade-in" style={{ background: 'var(--surface-2)', padding: 12, borderRadius: 12 }}>
+                    <label className="label" style={{ fontSize: '0.75rem' }}>Enter 6-digit code</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        className="input-field"
+                        placeholder="000000"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                        style={{ textAlign: 'center', letterSpacing: 4, fontWeight: 700 }}
+                      />
+                      <button className="btn btn-primary btn-sm" onClick={handleVerifyOtp} disabled={otpLoading}>
+                        Verify
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="label">Password</label>
                   <div className="input-premium-wrap">
@@ -355,11 +436,11 @@ export default function SignupPage({ toast }) {
                 </div>
               </div>
 
-              <button
-                className="btn btn-dark btn-full btn-lg hover-shrink"
+                <button
+                className={`btn btn-dark btn-full btn-lg hover-shrink ${!isPhoneVerified ? 'opacity-50' : ''}`}
                 style={{ marginTop: '1.5rem' }}
                 onClick={handleSignup}
-                disabled={loading}
+                disabled={loading || !isPhoneVerified}
               >
                 {loading ? <span className="spinner spinner-white" /> : <>Create {mode} account <FiArrowRight /></>}
               </button>

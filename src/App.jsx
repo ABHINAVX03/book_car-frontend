@@ -14,6 +14,8 @@ import RidesPage from "./pages/RidesPage";
 import ProfilePage from "./pages/ProfilePage";
 import SupportPage from "./pages/SupportPage";
 import AdminRevenuePage from "./pages/AdminRevenuePage";
+import DriverVerificationPage from "./pages/DriverVerificationPage";
+import AdminVerificationDashboard from "./pages/AdminVerificationDashboard";
 
 const PENDING_DRIVER_VEHICLE_KEY = "bookcar-pending-driver-vehicle";
 
@@ -95,6 +97,12 @@ function AppInner() {
           <Route path="support" element={<SupportPage />} />
           <Route path="admin/revenue" element={
             <ProtectedRoute><AdminRevenuePage toast={toast} /></ProtectedRoute>
+          } />
+          <Route path="driver/verify" element={
+            <ProtectedRoute><DriverVerificationPage /></ProtectedRoute>
+          } />
+          <Route path="admin/verify" element={
+            <ProtectedRoute><AdminVerificationDashboard /></ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

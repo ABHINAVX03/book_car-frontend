@@ -11,6 +11,7 @@ import {
   rateRiderByBody,
   startRide,
   withdrawMoneyFromDriverWallet,
+  getDriverProfile,
 } from "../services/api";
 import {
   RIDE_STATUS,
@@ -144,6 +145,8 @@ export default function DriverPanelPage({ toast }) {
   const [incomingRequest, setIncomingRequest] = useState(null);
   const [rating, setRating] = useState(0);
   const [ratedRideIds, setRatedRideIds] = useState(() => readRatedRideIds());
+  const [driverProfile, setDriverProfile] = useState(null);
+  const [isVerified, setIsVerified] = useState(false);
   const currentRideRef = useRef(currentRide);
   const rideStageRef = useRef(rideStage);
   const ratedRideIdsRef = useRef(ratedRideIds);
@@ -227,6 +230,14 @@ export default function DriverPanelPage({ toast }) {
 
   useEffect(() => {
     if (!isDriver) return undefined;
+    const loadProfile = async () => {
+      try {
+        const data = await getDriverProfile();
+        setDriverProfile(data);
+        setIsVerified(data.vehicleVerified);
+      } catch (err) {}
+    };
+    loadProfile();
     refreshWallet();
   }, [isDriver]);
 
@@ -542,6 +553,25 @@ export default function DriverPanelPage({ toast }) {
 
       <div className="app-shell-content">
         <div className="page-wrap">
+          {!isVerified && (
+            <div className="card premium-card animate-pulse" style={{ marginBottom: '1.5rem', border: '1px solid var(--red)', background: 'rgba(169, 61, 61, 0.05)' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                  <div className="emoji-large">⚠️</div>
+                  <div style={{ flex: 1 }}>
+                     <h3 style={{ color: 'var(--red)', marginBottom: 4 }}>Vehicle Verification Required</h3>
+                     <p style={{ fontSize: '0.88rem', color: 'var(--muted)' }}>
+                        {driverProfile?.verificationStatus === 'REJECTED' 
+                           ? `Rejected: ${driverProfile.rejectionReason}`
+                           : 'Your documents are being reviewed. You cannot accept rides yet.'}
+                     </p>
+                  </div>
+                  <button className="btn btn-dark btn-sm" onClick={() => navigate('/driver/verify')}>
+                     Complete Verification
+                  </button>
+               </div>
+            </div>
+          )}
+
           <div className="info-grid overlap-stack" style={{ marginBottom: "1.5rem" }}>
             <div className="info-tile">
               <div className="info-tile-label">Live requests</div>

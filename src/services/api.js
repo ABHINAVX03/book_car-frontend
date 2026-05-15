@@ -202,8 +202,14 @@ export const signup = (data) =>
 export const login = (data) =>
   fetchJson(`${BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify(data) });
 
-export const onboardDriver = async (userId, vehicleId, vehicleType = 'MINI') => {
-  const payload = { method: 'POST', body: JSON.stringify({ vehicleId, vehicleType }) };
+export const sendOtp = (phoneNumber) =>
+  fetchJson(`${BASE_URL}/auth/send-otp`, { method: 'POST', body: JSON.stringify({ phoneNumber }) });
+
+export const verifyOtp = (phoneNumber, otp) =>
+  fetchJson(`${BASE_URL}/auth/verify-otp`, { method: 'POST', body: JSON.stringify({ phoneNumber, otp }) });
+
+export const onboardDriver = async (userId, vehicleId, vehicleType = 'MINI', phoneNumber) => {
+  const payload = { method: 'POST', body: JSON.stringify({ vehicleId, vehicleType, phoneNumber }) };
   if (userId) {
     try {
       return await fetchJson(`${BASE_URL}/auth/onBoardNewDriver/${userId}`, payload);
@@ -347,4 +353,26 @@ export const verifyRidePayment = (rideId, data) =>
   fetchJson(`${BASE_URL}/riders/rides/${rideId}/verify-ride-payment`, {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+
+// ─── VERIFICATION ─────────────────────────────────────────────────────────────
+export const uploadDriverDoc = (docType, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchJson(`${BASE_URL}/drivers/upload/${docType}`, {
+    method: 'POST',
+    body: formData,
+  });
+};
+
+export const getPendingDrivers = (page = 0) =>
+  fetchJson(`${BASE_URL}/admin/drivers/pending?pageOffset=${page}`, { method: 'GET' });
+
+export const approveDriver = (id) =>
+  fetchJson(`${BASE_URL}/admin/drivers/${id}/approve`, { method: 'PUT' });
+
+export const rejectDriver = (id, rejectionReason) =>
+  fetchJson(`${BASE_URL}/admin/drivers/${id}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ rejectionReason })
   });

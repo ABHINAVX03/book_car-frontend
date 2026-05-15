@@ -78,8 +78,8 @@ const calculateDistanceInKm = (pickup, drop) => {
   const haversine =
     Math.sin(latDistance / 2) ** 2 +
     Math.cos(originLat) *
-      Math.cos(destinationLat) *
-      Math.sin(lngDistance / 2) ** 2;
+    Math.cos(destinationLat) *
+    Math.sin(lngDistance / 2) ** 2;
   const arc = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
   return earthRadiusKm * arc;
 };
@@ -190,7 +190,7 @@ export default function BookRidePage({ toast }) {
     let ride = location.state?.rebookRide;
     const raw = sessionStorage.getItem("rebook_ride");
     if (!ride && raw) {
-      try { ride = JSON.parse(raw); } catch (e) {}
+      try { ride = JSON.parse(raw); } catch (e) { }
     }
     if (ride) {
       sessionStorage.removeItem("rebook_ride");
@@ -641,26 +641,26 @@ export default function BookRidePage({ toast }) {
   const riderActionLabel = isRideRateable(rideStatus)
     ? "Rate your driver"
     : canCancelPendingRequest
-    ? "Cancel request"
-    : canCancelRide
-    ? resolvedRide ? "Cancel ride" : "Cancel confirmed ride"
-    : isRideOngoing(rideStatus)
-    ? "Ride in progress"
-    : rideStatus === RIDE_STATUS.CANCELLED
-    ? "Book another ride"
-    : "Waiting for driver";
+      ? "Cancel request"
+      : canCancelRide
+        ? resolvedRide ? "Cancel ride" : "Cancel confirmed ride"
+        : isRideOngoing(rideStatus)
+          ? "Ride in progress"
+          : rideStatus === RIDE_STATUS.CANCELLED
+            ? "Book another ride"
+            : "Waiting for driver";
 
   const riderActionHint = isRideRateable(rideStatus)
     ? "Your ride has ended. Share a rating to finish the trip."
     : canCancelPendingRequest
-    ? "You can cancel while we are finding a driver."
-    : canCancelRide
-    ? "Your trip is confirmed and can still be cancelled before it starts."
-    : isRideOngoing(rideStatus)
-    ? "The driver has started the ride, so cancellation is locked."
-    : rideStatus === RIDE_STATUS.CANCELLED
-    ? "This trip is closed. Start a new booking whenever you are ready."
-    : "We will enable cancellation once a driver has confirmed your request.";
+      ? "You can cancel while we are finding a driver."
+      : canCancelRide
+        ? "Your trip is confirmed and can still be cancelled before it starts."
+        : isRideOngoing(rideStatus)
+          ? "The driver has started the ride, so cancellation is locked."
+          : rideStatus === RIDE_STATUS.CANCELLED
+            ? "This trip is closed. Start a new booking whenever you are ready."
+            : "We will enable cancellation once a driver has confirmed your request.";
 
   return (
     <div className="animate-page-enter">
@@ -749,7 +749,7 @@ export default function BookRidePage({ toast }) {
                   onSelect={(data) => setForm((f) => ({ ...f, pickupLocation: data }))}
                   isSkeleton={rebookLoading}
                 />
-                
+
                 {/* Saved locations shortcuts */}
                 <div style={{ display: "flex", gap: 12, marginBottom: "0.5rem", flexWrap: "wrap" }}>
                   {SAVED_LOCATIONS.map(loc => (
@@ -840,8 +840,8 @@ export default function BookRidePage({ toast }) {
                           {isWallet
                             ? walletBalance === null ? "Wallet balance is syncing." : `Balance ${formatCurrency(walletBalance)}`
                             : method === "RAZORPAY"
-                            ? "Pay via card, UPI or netbanking after the ride ends."
-                            : "Pay the driver directly at the end of the trip."}
+                              ? "Pay via card, UPI or netbanking after the ride ends."
+                              : "Pay the driver directly at the end of the trip."}
                         </div>
                         {isWallet && selectedFare > 0 && walletBalance !== null && (
                           <div className={`payment-method-hint ${walletCanCoverPreview ? "ok" : "warn"}`}>

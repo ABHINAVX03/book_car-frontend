@@ -12,6 +12,8 @@ import {
   getDriverRides,
   verifyRiderWalletPayment,
   refreshAccessToken,
+  sendOtp,
+  verifyOtp,
 } from "../services/api";
 import SupportPanel from "../components/SupportPanel";
 
@@ -89,6 +91,12 @@ export default function ProfilePage({ toast }) {
   const [userId, setUserId] = useState('');
   const [obLoading, setObLoading] = useState(false);
 
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+
   const showingDriverWallet = walletView === "driver" && canUseDriverWallet;
   const showingRiderWallet = walletView === "rider" && canUseRiderWallet;
 
@@ -154,9 +162,10 @@ export default function ProfilePage({ toast }) {
 
   const handleOnboard = async () => {
     if (!vehicleId || !userId) { toast.error('Please enter both your user ID and vehicle ID.'); return; }
+    if (!isPhoneVerified) { toast.error('Please verify your phone number first.'); return; }
     setObLoading(true);
     try {
-      const d = await onboardDriver(userId, vehicleId, vehicleType);
+      const d = await onboardDriver(userId, vehicleId, vehicleType, phoneNumber);
       try {
         sessionStorage.removeItem('bookcar-pending-driver-vehicle');
       } catch {
@@ -175,6 +184,38 @@ export default function ProfilePage({ toast }) {
       toast.error(e.message || 'Unable to complete driver onboarding.');
     } finally {
       setObLoading(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (!phoneNumber) { toast.error("Please enter a phone number."); return; }
+    setOtpLoading(true);
+    try {
+      await sendOtp(phoneNumber);
+      setOtpSent(true);
+      toast.success("Verification code sent!");
+    } catch (e) {
+      toast.error(e.message || "Failed to send OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) { toast.error("Enter a 6-digit code."); return; }
+    setOtpLoading(true);
+    try {
+      const res = await verifyOtp(phoneNumber, otpCode);
+      if (res.valid) {
+        setIsPhoneVerified(true);
+        toast.success("Verified!");
+      } else {
+        toast.error("Invalid code.");
+      }
+    } catch (e) {
+      toast.error(e.message || "Verification failed");
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -482,6 +523,27 @@ export default function ProfilePage({ toast }) {
               {onboarding && (
                 <div style={{ marginTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--hero-text-muted)', marginBottom: 6 }}>Verify Phone Number</label>
+                    <div className="input-premium-wrap" style={{ marginBottom: 8 }}>
+                        <input className="input-field" placeholder="+91..." value={phoneNumber} onChange={e => { setPhoneNumber(e.target.value); setIsPhoneVerified(false); setOtpSent(false); }}
+                            disabled={isPhoneVerified}
+                            style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.15)', color: 'var(--chrome-fg)', paddingRight: 80 }} />
+                        {!isPhoneVerified && (
+                            <button className="btn btn-ghost btn-sm" style={{ position: 'absolute', right: 8, top: 8, fontSize: '0.65rem' }} onClick={handleSendOtp} disabled={otpLoading}>
+                                {otpLoading ? '...' : (otpSent ? 'Resend' : 'Send')}
+                            </button>
+                        )}
+                        {isPhoneVerified && <span style={{ position: 'absolute', right: 12, top: 12, color: 'var(--green)', fontSize: '0.75rem' }}>✓ Verified</span>}
+                    </div>
+                    {otpSent && !isPhoneVerified && (
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                            <input className="input-field" placeholder="6-digit code" maxLength={6} value={otpCode} onChange={e => setOtpCode(e.target.value)}
+                                style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.15)', color: 'var(--chrome-fg)', textAlign: 'center' }} />
+                            <button className="btn btn-primary btn-sm" onClick={handleVerifyOtp} disabled={otpLoading}>Verify</button>
+                        </div>
+                    )}
+                  </div>
+                  <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--hero-text-muted)', marginBottom: 6 }}>Your user ID</label>
                     <input className="input-field" placeholder="e.g. 5" value={userId} onChange={e => setUserId(e.target.value)}
                       style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.15)', color: 'var(--chrome-fg)' }} />
@@ -507,7 +569,7 @@ export default function ProfilePage({ toast }) {
                       ))}
                     </div>
                   </div>
-                  <button className="btn btn-primary" onClick={handleOnboard} disabled={obLoading}>
+                  <button className={`btn btn-primary ${!isPhoneVerified ? 'opacity-50' : ''}`} onClick={handleOnboard} disabled={obLoading || !isPhoneVerified}>
                     {obLoading ? <span className="spinner" /> : 'Activate driver profile'}
                   </button>
                 </div>
