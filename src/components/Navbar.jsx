@@ -39,7 +39,7 @@ export default function Navbar({ toast }) {
 
   const handleLogout = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
+      await fetch(`${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app"}/auth/logout`, {
         method: 'POST',
         credentials: 'include'
       });

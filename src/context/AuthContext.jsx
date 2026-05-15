@@ -5,6 +5,7 @@ import {
   getStoredToken,
   isTokenExpired,
 } from "../utils/authToken";
+import { refreshAccessToken } from "../services/api";
 import { cachePhoneNumber, getCachedPhoneNumber } from "../utils/userContactCache";
 
 const AuthCtx = createContext(null);
@@ -34,6 +35,29 @@ export function AuthProvider({ children }) {
     const storedToken = getStoredToken();
     return isTokenExpired(storedToken) ? null : storedToken;
   });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const storedToken = getStoredToken();
+      
+      // If token is expired but we have a user, try to refresh immediately
+      if (user && isTokenExpired(storedToken)) {
+        try {
+          const newToken = await refreshAccessToken();
+          setToken(newToken);
+        } catch (err) {
+          // If refresh fails, clear everything
+          setUser(null);
+          setToken(null);
+          clearStoredAuth();
+        }
+      }
+      setLoading(false);
+    };
+
+    restoreSession();
+  }, []);
 
   const login = (userData, tok) => {
     const normalizedUser = {
@@ -62,12 +86,6 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    const storedToken = getStoredToken();
-    if (storedToken && isTokenExpired(storedToken)) {
-      logout();
-      return undefined;
-    }
-
     const handleExpired = () => {
       setUser(null);
       setToken(null);
@@ -82,8 +100,20 @@ export function AuthProvider({ children }) {
   const isAdmin = user?.roles?.includes('ADMIN');
 
   return (
-    <AuthCtx.Provider value={{ user, token, login, logout, isDriver, isRider, isAdmin }}>
-      {children}
+    <AuthCtx.Provider value={{ user, token, loading, login, logout, isDriver, isRider, isAdmin }}>
+      {!loading && children}
+      {loading && (
+        <div style={{ 
+          height: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          background: 'var(--bg)',
+          color: 'var(--brand)'
+        }}>
+          <div className="spinner" style={{ width: 40, height: 40 }} />
+        </div>
+      )}
     </AuthCtx.Provider>
   );
 }

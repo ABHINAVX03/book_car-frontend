@@ -1,6 +1,6 @@
 import { expireAuth, getStoredToken, isTokenExpired } from "../utils/authToken";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app";
 
 let refreshPromise = null;
 
@@ -14,6 +14,11 @@ const callRefreshToken = async () => {
         headers: { 'Accept': 'application/json' },
         credentials: 'include',
       });
+      
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Refresh token invalid');
+      }
+
       const text = await res.text();
       const json = text ? JSON.parse(text) : null;
 
@@ -21,6 +26,7 @@ const callRefreshToken = async () => {
         throw new Error('Refresh failed');
       }
 
+      // Handle both { accessToken: "..." } and { data: { accessToken: "..." } }
       const newToken = json?.data?.accessToken || json?.accessToken;
       if (newToken) {
         window.localStorage.setItem('token', newToken);
@@ -43,6 +49,7 @@ export const refreshAccessToken = () => callRefreshToken();
 
 const shouldAttemptRefreshForError = (status, message = "") => {
   const msg = message.toLowerCase();
+  // Standard expired messages from Spring Security / JJWT
   if (
     msg.includes('jwt expired') ||
     msg.includes('token expired') ||
@@ -52,7 +59,9 @@ const shouldAttemptRefreshForError = (status, message = "") => {
   ) {
     return true;
   }
+  // 401 is the standard for unauthenticated (expired/missing token)
   if (status === 401) return true;
+  // Some filters might return 403 for expired tokens if they misinterpret it as missing authority
   if (status === 403 && (
     msg.includes('access denied') ||
     msg.includes('forbidden') ||
@@ -64,25 +73,17 @@ const shouldAttemptRefreshForError = (status, message = "") => {
   return false;
 };
 
-const getHeaders = () => {
-  const token = getStoredToken();
-  if (token && isTokenExpired(token)) {
-    expireAuth();
-    return { Accept: 'application/json', 'Content-Type': 'application/json' };
-  }
-  return {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
-
 const fetchJson = async (url, options = {}) => {
   let token = getStoredToken();
   let isRetrying = false;
 
+  // Pre-emptive refresh if we know the token is dead
   if (token && isTokenExpired(token)) {
-    token = await callRefreshToken();
+    try {
+      token = await callRefreshToken();
+    } catch (e) {
+      token = null; // Proceed as guest or let the 401 happen
+    }
   }
 
   const doFetch = async (currentToken) => {
@@ -99,11 +100,15 @@ const fetchJson = async (url, options = {}) => {
     return await fetch(url, {
       ...options,
       headers,
-      credentials: 'include',
+      credentials: 'include', // CRITICAL for cross-origin refresh cookies
     });
   };
 
   let res = await doFetch(token);
+  
+  // Handle empty responses (204 No Content)
+  if (res.status === 204) return null;
+
   const text = await res.text();
   let json = null;
   try {
@@ -114,32 +119,42 @@ const fetchJson = async (url, options = {}) => {
 
   if (!res.ok) {
     const message = json?.error?.message || json?.message || text || `HTTP ${res.status}`;
+    
+    // Attempt rotation/refresh on 401/expired
     if (shouldAttemptRefreshForError(res.status, message) && !isRetrying) {
       isRetrying = true;
       try {
         const newToken = await callRefreshToken();
+        // Retry with new token
         res = await doFetch(newToken);
         if (res.ok) {
+          if (res.status === 204) return null;
           const retryText = await res.text();
           let retryJson = null;
           try { retryJson = retryText ? JSON.parse(retryText) : null; } catch {}
           return retryJson?.data ?? retryJson;
         }
       } catch (e) {
+        // If refresh fails, we must force logout
+        expireAuth();
         const error = new Error('Session expired. Please login again.');
         error.status = 401;
         throw error;
       }
     }
+
+    // Final error state
     const finalMessage = json?.error?.message || json?.message || `HTTP ${res.status}`;
     const error = new Error(finalMessage);
     error.status = res.status;
     error.url = url;
     throw error;
   }
+
   if (json?.error) {
     throw new Error(json.error.message || json.error || 'API Error');
   }
+
   return json?.data ?? json;
 };
 
