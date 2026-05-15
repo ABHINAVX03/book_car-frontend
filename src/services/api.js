@@ -384,8 +384,11 @@ export const getAllDriversByStatus = (status = 'PENDING', page = 0) =>
 export const approveDriver = (id) =>
   fetchJson(`${BASE_URL}/admin/drivers/${id}/approve`, { method: 'PUT' });
 
-export const rejectDriver = (id, rejectionReason) =>
-  fetchJson(`${BASE_URL}/admin/drivers/${id}/reject`, {
-    method: 'PUT',
-    body: JSON.stringify({ rejectionReason })
-  });
+export const rejectDriver = (id, reason) =>
+  fetchJson(`${BASE_URL}/admin/drivers/${id}/reject`, { method: 'PUT', body: JSON.stringify({ rejectionReason: reason }) });
+
+export const blockDriver = (id) =>
+  fetchJson(`${BASE_URL}/admin/drivers/${id}/block`, { method: 'POST' });
+
+export const unblockDriver = (id) =>
+  fetchJson(`${BASE_URL}/admin/drivers/${id}/unblock`, { method: 'POST' });

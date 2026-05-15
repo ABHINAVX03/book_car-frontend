@@ -611,7 +611,25 @@ export default function DriverPanelPage({ toast }) {
              </div>
           </div>
 
-          {!isVerified && (
+          {/* Blocked Status Banner */}
+          {driverProfile?.blocked && (
+            <div className="card premium-card animate-pulse" style={{ marginBottom: '1.5rem', border: '2px solid #a93d3d', background: 'rgba(169, 61, 61, 0.1)' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                  <div className="emoji-large">🚫</div>
+                  <div style={{ flex: 1 }}>
+                     <h3 style={{ color: '#a93d3d', marginBottom: 4 }}>Account Suspended</h3>
+                     <p style={{ fontSize: '0.88rem', color: '#a93d3d', fontWeight: 600 }}>
+                        Your driver account has been blocked by admin due to safety or policy violations. You cannot go online or accept rides.
+                     </p>
+                  </div>
+                  <button className="btn btn-red btn-sm" onClick={() => navigate('/support')}>
+                     Contact Support
+                  </button>
+               </div>
+            </div>
+          )}
+
+          {!isVerified && !driverProfile?.blocked && (
             <div className="card premium-card animate-pulse" style={{ marginBottom: '1.5rem', border: '1px solid var(--red)', background: 'rgba(169, 61, 61, 0.05)' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
                   <div className="emoji-large">⚠️</div>

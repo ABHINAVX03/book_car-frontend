@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getAllDriversByStatus, approveDriver, rejectDriver } from '../services/api';
-import { FiCheck, FiX, FiEye, FiClock, FiCheckCircle, FiXCircle, FiFileText } from 'react-icons/fi';
+import { getAllDriversByStatus, approveDriver, rejectDriver, blockDriver, unblockDriver } from '../services/api';
+import { FiCheck, FiX, FiEye, FiClock, FiCheckCircle, FiXCircle, FiFileText, FiSlash, FiUnlock, FiActivity } from 'react-icons/fi';
 
 const AdminVerificationDashboard = ({ toast }) => {
     const [drivers, setDrivers] = useState([]);
@@ -58,6 +58,29 @@ const AdminVerificationDashboard = ({ toast }) => {
             setSelectedDriver(null);
         } catch (err) {
             toast.error("Rejection failed");
+        }
+    };
+
+    const handleBlock = async (id) => {
+        if (!window.confirm("CRITICAL: Block this driver? They will be force-disconnected and cannot take rides.")) return;
+        try {
+            await blockDriver(id);
+            toast.success("Driver BLOCKED successfully");
+            loadDrivers();
+            setSelectedDriver(prev => ({ ...prev, blocked: true, available: false }));
+        } catch (err) {
+            toast.error("Block action failed");
+        }
+    };
+
+    const handleUnblock = async (id) => {
+        try {
+            await unblockDriver(id);
+            toast.success("Driver unblocked");
+            loadDrivers();
+            setSelectedDriver(prev => ({ ...prev, blocked: false }));
+        } catch (err) {
+            toast.error("Unblock action failed");
         }
     };
 
@@ -135,7 +158,7 @@ const AdminVerificationDashboard = ({ toast }) => {
                                 <tr className="bg-surface-2 text-xs uppercase text-muted">
                                     <th className="px-6 py-4">Driver</th>
                                     <th className="px-6 py-4">Vehicle Details</th>
-                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Live Status</th>
                                     <th className="px-6 py-4">Action</th>
                                 </tr>
                             </thead>
@@ -152,23 +175,33 @@ const AdminVerificationDashboard = ({ toast }) => {
                                             onClick={() => setSelectedDriver(driver)}
                                         >
                                             <td className="px-6 py-4">
-                                                <div className="font-bold">{driver.user?.name}</div>
-                                                <div className="text-[10px] text-muted">USER ID: {driver.user?.id}</div>
+                                                <div className="font-bold flex items-center gap-2">
+                                                   {driver.user?.name}
+                                                   {driver.blocked && <FiSlash className="text-red-500" title="Blocked" />}
+                                                </div>
+                                                <div className="text-[10px] text-muted uppercase">ID: {driver.id}</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-sm">{driver.vehicleId}</div>
                                                 <div className="text-[10px] uppercase text-muted font-bold tracking-tighter">
-                                                    {driver.vehicleType} • {driver.vehicleModel || 'N/A'}
+                                                    {driver.vehicleType}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${
-                                                    driver.verificationStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                                                    driver.verificationStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
-                                                }`}>
-                                                    {driver.verificationStatus}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                   <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase inline-flex items-center gap-1 w-fit ${
+                                                      driver.blocked ? 'bg-red-100 text-red-700' :
+                                                      driver.available ? 'bg-green-100 text-green-700' : 'bg-surface-3 text-muted'
+                                                   }`}>
+                                                      {driver.blocked ? <><FiSlash size={8}/> Blocked</> : 
+                                                       driver.available ? <><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"/> Online</> : 'Offline'}
+                                                   </span>
+                                                   <span className={`text-[9px] font-bold uppercase ${
+                                                      driver.verificationStatus === 'APPROVED' ? 'text-blue-500' : 'text-orange-400'
+                                                   }`}>
+                                                      {driver.verificationStatus}
+                                                   </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <button className="btn btn-ghost btn-sm">Review</button>
@@ -190,19 +223,36 @@ const AdminVerificationDashboard = ({ toast }) => {
                                     <h2 className="text-xl font-bold">{selectedDriver.user?.name}</h2>
                                     <p className="text-xs text-muted">Driver ID: {selectedDriver.id}</p>
                                 </div>
-                                {activeTab === 'PENDING' && (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleApprove(selectedDriver.id)} className="w-8 h-8 rounded-full bg-green-500 text-white flex-center hover:bg-green-600 transition-colors">
-                                            <FiCheck />
+                                <div className="flex gap-2">
+                                    {selectedDriver.blocked ? (
+                                        <button onClick={() => handleUnblock(selectedDriver.id)} className="btn btn-dark btn-sm flex items-center gap-1">
+                                            <FiUnlock /> Unblock
                                         </button>
-                                        <button onClick={() => setShowRejectModal(true)} className="w-8 h-8 rounded-full bg-red-500 text-white flex-center hover:bg-red-600 transition-colors">
-                                            <FiX />
+                                    ) : (
+                                        <button onClick={() => handleBlock(selectedDriver.id)} className="btn btn-red btn-sm flex items-center gap-1">
+                                            <FiSlash /> Block
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                    {activeTab === 'PENDING' && (
+                                        <>
+                                            <button onClick={() => handleApprove(selectedDriver.id)} className="w-8 h-8 rounded-full bg-green-500 text-white flex-center hover:bg-green-600 transition-colors" title="Approve">
+                                                <FiCheck />
+                                            </button>
+                                            <button onClick={() => setShowRejectModal(true)} className="w-8 h-8 rounded-full bg-red-500 text-white flex-center hover:bg-red-600 transition-colors" title="Reject Documents">
+                                                <FiX />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-6">
+                                <div className="flex items-center gap-4 p-3 bg-surface-2 rounded-xl mb-4">
+                                   <div className={`w-3 h-3 rounded-full ${selectedDriver.blocked ? 'bg-red-500' : (selectedDriver.available ? 'bg-green-500 animate-pulse' : 'bg-gray-400')}`} />
+                                   <div className="text-sm font-bold">
+                                      {selectedDriver.blocked ? 'ACCOUNT BLOCKED' : (selectedDriver.available ? 'CURRENTLY ONLINE' : 'CURRENTLY OFFLINE')}
+                                   </div>
+                                </div>
                                 <DocumentPreview label="Profile Photo" url={selectedDriver.profilePhotoUrl} />
                                 <DocumentPreview label="Registration (RC)" url={selectedDriver.rcUrl} />
                                 <DocumentPreview label="Driving License" url={selectedDriver.licenseUrl} />
