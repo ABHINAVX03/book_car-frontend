@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getDriverProfile, uploadDriverDoc, updateDriverProfile } from '../services/api';
-import { toast } from 'react-hot-toast';
 import { FiUploadCloud, FiCheckCircle, FiXCircle, FiInfo } from 'react-icons/fi';
 
-const DriverVerificationPage = () => {
+const DriverVerificationPage = ({ toast }) => {
     const { user } = useAuth();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getPendingDrivers, approveDriver, rejectDriver } from '../services/api';
-import { toast } from 'react-hot-toast';
 import { FiCheck, FiX, FiEye } from 'react-icons/fi';
 
-const AdminVerificationDashboard = () => {
+const AdminVerificationDashboard = ({ toast }) => {
     const [pendingDrivers, setPendingDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDriver, setSelectedDriver] = useState(null);

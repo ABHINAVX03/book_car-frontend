@@ -99,10 +99,10 @@ function AppInner() {
             <ProtectedRoute><AdminRevenuePage toast={toast} /></ProtectedRoute>
           } />
           <Route path="driver/verify" element={
-            <ProtectedRoute><DriverVerificationPage /></ProtectedRoute>
+            <ProtectedRoute><DriverVerificationPage toast={toast} /></ProtectedRoute>
           } />
           <Route path="admin/verify" element={
-            <ProtectedRoute><AdminVerificationDashboard /></ProtectedRoute>
+            <ProtectedRoute><AdminVerificationDashboard toast={toast} /></ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
