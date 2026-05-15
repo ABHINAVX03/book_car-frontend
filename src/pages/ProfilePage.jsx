@@ -85,6 +85,7 @@ export default function ProfilePage({ toast }) {
   const [walletActionLoading, setWalletActionLoading] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
   const [vehicleId, setVehicleId] = useState('');
+  const [vehicleType, setVehicleType] = useState('MINI');
   const [userId, setUserId] = useState('');
   const [obLoading, setObLoading] = useState(false);
 
@@ -155,7 +156,7 @@ export default function ProfilePage({ toast }) {
     if (!vehicleId || !userId) { toast.error('Please enter both your user ID and vehicle ID.'); return; }
     setObLoading(true);
     try {
-      const d = await onboardDriver(userId, vehicleId);
+      const d = await onboardDriver(userId, vehicleId, vehicleType);
       try {
         sessionStorage.removeItem('bookcar-pending-driver-vehicle');
       } catch {
@@ -321,7 +322,8 @@ export default function ProfilePage({ toast }) {
                     {showingDriverWallet && (
                       <>
                         <Row label="Driver ID" value={formatDriverId(profile.id)} />
-                        <Row label="Vehicle" value={profile.vehicleId || '—'} />
+                        <Row label="Vehicle ID" value={profile.vehicleId || '—'} />
+                        <Row label="Car Category" value={profile.vehicleType || '—'} />
                         <Row label="Rating" value={profile.rating ? `⭐ ${profile.rating.toFixed(2)}` : '—'} />
                         <Row label="Availability" value={
                           <span className={`badge ${profile.available ? 'badge-green' : 'badge-red'}`}>
@@ -488,6 +490,22 @@ export default function ProfilePage({ toast }) {
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--hero-text-muted)', marginBottom: 6 }}>Vehicle ID</label>
                     <input className="input-field" placeholder="MH12AB1234" value={vehicleId} onChange={e => setVehicleId(e.target.value)}
                       style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.15)', color: 'var(--chrome-fg)' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--hero-text-muted)', marginBottom: 6 }}>Car Category</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {['MINI', 'SEDAN', 'LUXE'].map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          className={`btn btn-sm ${vehicleType === type ? 'btn-primary' : 'btn-ghost'}`}
+                          onClick={() => setVehicleType(type)}
+                          style={{ fontSize: '0.7rem' }}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button className="btn btn-primary" onClick={handleOnboard} disabled={obLoading}>
                     {obLoading ? <span className="spinner" /> : 'Activate driver profile'}

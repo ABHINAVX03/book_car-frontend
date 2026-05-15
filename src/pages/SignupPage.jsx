@@ -21,6 +21,7 @@ export default function SignupPage({ toast }) {
 
   const [form, setForm] = useState({ name: '', email: '', password: '', phoneNumber: '' });
   const [vehicleId, setVehicleId] = useState('');
+  const [vehicleType, setVehicleType] = useState('MINI');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -146,7 +147,7 @@ export default function SignupPage({ toast }) {
     setInlineFeedback(null);
     setLoading(true);
     try {
-      const driver = await onboardDriver(uid, vehicleId);
+      const driver = await onboardDriver(uid, vehicleId, vehicleType);
       try {
         sessionStorage.removeItem(PENDING_DRIVER_VEHICLE_KEY);
       } catch {
@@ -397,6 +398,26 @@ export default function SignupPage({ toast }) {
                 <p style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 6 }}>
                   Enter the vehicle registration number exactly as on your RC book
                 </p>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label className="label">Car Category</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {['MINI', 'SEDAN', 'LUXE'].map(type => {
+                    const isSelected = vehicleType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ fontSize: '0.75rem', padding: '10px 4px' }}
+                        onClick={() => setVehicleType(type)}
+                      >
+                        {type}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {userId && (

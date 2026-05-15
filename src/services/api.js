@@ -202,8 +202,8 @@ export const signup = (data) =>
 export const login = (data) =>
   fetchJson(`${BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify(data) });
 
-export const onboardDriver = async (userId, vehicleId) => {
-  const payload = { method: 'POST', body: JSON.stringify({ vehicleId }) };
+export const onboardDriver = async (userId, vehicleId, vehicleType = 'MINI') => {
+  const payload = { method: 'POST', body: JSON.stringify({ vehicleId, vehicleType }) };
   if (userId) {
     try {
       return await fetchJson(`${BASE_URL}/auth/onBoardNewDriver/${userId}`, payload);
