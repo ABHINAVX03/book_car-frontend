@@ -80,6 +80,7 @@ export default function SignupPage({ toast }) {
       if (mode === 'driver') {
         try {
           sessionStorage.setItem(PENDING_DRIVER_VEHICLE_KEY, "1");
+          setUserId(user.id);
         } catch {
           /* ignore */
         }
@@ -185,8 +186,11 @@ export default function SignupPage({ toast }) {
       toast.error(feedback);
       return;
     }
-    const uid = userId || prompt('Enter your User ID from the database:');
-    if (!uid) return;
+    const uid = userId;
+    if (!uid) {
+      toast.error("User session lost. Please refresh and try again.");
+      return;
+    }
     setInlineFeedback(null);
     setLoading(true);
     try {
@@ -515,6 +519,7 @@ export default function SignupPage({ toast }) {
               )}
 
               <button
+                type="button"
                 className="btn btn-primary btn-full btn-lg"
                 onClick={handleOnboard}
                 disabled={loading}
