@@ -91,7 +91,15 @@ const DriverVerificationPage = ({ toast }) => {
                         <div className="mb-4">
                             {doc.url ? (
                                 <div className="relative group">
-                                    <img src={doc.url} alt={doc.label} className="w-32 h-32 object-cover rounded-xl border-2 border-primary" />
+                                    {doc.url.toLowerCase().endsWith('.pdf') ? (
+                                        <div className="w-32 h-32 bg-red-50 rounded-xl flex flex-col items-center justify-center border-2 border-red-200">
+                                            <span className="text-3xl mb-1">📄</span>
+                                            <span className="text-[10px] font-bold text-red-600">PDF DOC</span>
+                                            <a href={doc.url} target="_blank" rel="noreferrer" className="mt-2 text-[9px] underline text-red-500">View PDF</a>
+                                        </div>
+                                    ) : (
+                                        <img src={doc.url} alt={doc.label} className="w-32 h-32 object-cover rounded-xl border-2 border-primary" />
+                                    )}
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex-center transition-all rounded-xl">
                                         <label className="cursor-pointer text-white text-xs font-bold">Replace</label>
                                         <input type="file" className="hidden" onChange={e => handleFileUpload(doc.id, e.target.files[0])} />

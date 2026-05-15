@@ -109,8 +109,16 @@ const AdminVerificationDashboard = ({ toast }) => {
                                     <div key={doc.label}>
                                         <label className="label text-xs uppercase mb-2">{doc.label}</label>
                                         {doc.url ? (
-                                            <a href={doc.url} target="_blank" rel="noreferrer">
-                                                <img src={doc.url} className="w-full h-48 object-cover rounded-xl border border-surface-2 hover:opacity-90 transition-opacity" />
+                                            <a href={doc.url} target="_blank" rel="noreferrer" className="block">
+                                                {doc.url.toLowerCase().endsWith('.pdf') ? (
+                                                    <div className="w-full h-48 bg-red-50 rounded-xl flex flex-col items-center justify-center border-2 border-red-100 hover:bg-red-100 transition-colors">
+                                                        <span className="text-4xl mb-2">📄</span>
+                                                        <span className="text-sm font-bold text-red-600">VIEW PDF DOCUMENT</span>
+                                                        <span className="text-[10px] text-red-400 mt-1">(Opens in new tab)</span>
+                                                    </div>
+                                                ) : (
+                                                    <img src={doc.url} className="w-full h-48 object-cover rounded-xl border border-surface-2 hover:opacity-90 transition-opacity" />
+                                                )}
                                             </a>
                                         ) : (
                                             <div className="w-full h-48 bg-surface-2 rounded-xl flex-center text-muted text-xs italic">Not Uploaded</div>
