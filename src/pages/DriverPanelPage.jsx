@@ -12,6 +12,7 @@ import {
   startRide,
   withdrawMoneyFromDriverWallet,
   getDriverProfile,
+  updateDriverAvailability,
 } from "../services/api";
 import {
   RIDE_STATUS,
@@ -136,6 +137,27 @@ export default function DriverPanelPage({ toast }) {
   const [refreshing, setRefreshing] = useState(true);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletActionLoading, setWalletActionLoading] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
+  const handleToggleAvailability = async () => {
+    if (!isVerified) {
+      toast.error("Verification Required: You must be verified by an admin before going online.");
+      return;
+    }
+
+    setAvailabilityLoading(true);
+    try {
+      const newStatus = !isAvailable;
+      const res = await updateDriverAvailability(newStatus);
+      setIsAvailable(res.available);
+      toast.success(res.available ? "You are now ONLINE!" : "You are now OFFLINE");
+    } catch (error) {
+      toast.error(error.message || "Failed to update availability");
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
   const [wallet, setWallet] = useState(null);
   const [walletAmount, setWalletAmount] = useState("");
   const [liveRides, setLiveRides] = useState([]);
@@ -235,6 +257,7 @@ export default function DriverPanelPage({ toast }) {
         const data = await getDriverProfile();
         setDriverProfile(data);
         setIsVerified(data.vehicleVerified);
+        setIsAvailable(data.available);
       } catch (err) {}
     };
     loadProfile();
@@ -553,6 +576,41 @@ export default function DriverPanelPage({ toast }) {
 
       <div className="app-shell-content">
         <div className="page-wrap">
+          {/* Availability Toggle */}
+          <div className="card premium-card animate-slide-up" style={{ marginBottom: '1.5rem', padding: '1rem 1.5rem' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                   <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Driver Status</h4>
+                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>
+                      {isAvailable ? "You are visible to riders" : "You are currently hidden"}
+                   </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                   <span style={{ 
+                      fontSize: '0.7rem', 
+                      fontWeight: 800, 
+                      letterSpacing: '0.05em',
+                      color: isAvailable ? 'var(--brand)' : 'var(--muted)'
+                   }}>
+                      {isAvailable ? "ONLINE" : "OFFLINE"}
+                   </span>
+                   <button 
+                      className={`btn ${isAvailable ? 'btn-primary' : 'btn-dark'} btn-sm`}
+                      style={{ 
+                         minWidth: 100, 
+                         borderRadius: 30,
+                         background: isAvailable ? '#0b8f55' : '',
+                         borderColor: isAvailable ? '#0b8f55' : ''
+                      }}
+                      onClick={handleToggleAvailability}
+                      disabled={availabilityLoading}
+                   >
+                      {availabilityLoading ? <span className="spinner" /> : (isAvailable ? "Go Offline" : "Go Online")}
+                   </button>
+                </div>
+             </div>
+          </div>
+
           {!isVerified && (
             <div className="card premium-card animate-pulse" style={{ marginBottom: '1.5rem', border: '1px solid var(--red)', background: 'rgba(169, 61, 61, 0.05)' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>

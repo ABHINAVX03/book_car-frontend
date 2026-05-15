@@ -348,6 +348,12 @@ export const updateDriverLocation = (longitude, latitude) =>
     body: JSON.stringify({ coordinates: [longitude, latitude] }),
   });
 
+export const updateDriverAvailability = (available) =>
+  fetchJson(`${BASE_URL}/drivers/availability`, {
+    method: 'PATCH',
+    body: JSON.stringify({ available }),
+  });
+
 // ─── ADMIN ───────────────────────────────────────────────────────────────────
 export const getAdminRevenue = (page = 0, size = 15) =>
   fetchJson(`${BASE_URL}/admin/revenue?page=${page}&size=${size}`);
