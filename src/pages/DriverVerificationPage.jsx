@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getDriverProfile, uploadDriverDoc, updateDriverProfile } from '../services/api';
+import { getDriverProfile, uploadDriverDoc, submitVerification, updateDriverProfile } from '../services/api';
 import { FiUploadCloud, FiCheckCircle, FiXCircle, FiInfo } from 'react-icons/fi';
 
 const DriverVerificationPage = ({ toast }) => {
@@ -49,6 +49,19 @@ const DriverVerificationPage = ({ toast }) => {
             toast.error(`Upload failed: ${err.message}`);
         } finally {
             setUploading(prev => ({ ...prev, [docType]: false }));
+        }
+    };
+
+    const handleSubmit = async () => {
+        try {
+            setUploading(true);
+            await submitVerification();
+            toast.success("Documents submitted for review!");
+            loadProfile();
+        } catch (err) {
+            toast.error(err.message || "Submission failed");
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -124,9 +137,58 @@ const DriverVerificationPage = ({ toast }) => {
                 ))}
             </div>
 
-            <div className="mt-12 text-center">
-                <p className="text-xs text-muted">
-                    Our admin team will review your documents within 24-48 hours.
+            <div className="mt-12">
+                {status === 'REJECTED' || (!profile?.rcUrl || !profile?.licenseUrl || !profile?.insuranceUrl) ? (
+                    <div className="premium-card p-8 mb-8 bg-primary/5 border-2 border-primary/20 animate-fade-in text-center">
+                        <h3 className="text-xl font-bold mb-2">Complete Your Profile</h3>
+                        <p className="text-muted mb-6 max-w-lg mx-auto">
+                            Upload your Registration Certificate, Driving License, and Insurance Policy to enable the submission button.
+                        </p>
+                        <button 
+                            className="btn btn-primary px-12 py-4 text-lg font-bold shadow-xl opacity-50 cursor-not-allowed"
+                            disabled
+                        >
+                            Submit for Verification
+                        </button>
+                        <p className="text-xs text-orange-500 mt-4 font-bold flex items-center justify-center gap-1">
+                            <FiInfo /> Missing: 
+                            {!profile?.rcUrl && ' RC'}
+                            {!profile?.licenseUrl && ' License'}
+                            {!profile?.insuranceUrl && ' Insurance'}
+                        </p>
+                    </div>
+                ) : status === 'PENDING' && profile?.rcUrl && profile?.licenseUrl && profile?.insuranceUrl ? (
+                    <div className="premium-card p-10 mb-8 bg-blue-50 border-2 border-blue-200 animate-pulse text-center">
+                        <div className="emoji-large mb-4">⏳</div>
+                        <h3 className="text-2xl font-bold mb-2 text-blue-800">Verification in Progress</h3>
+                        <p className="text-blue-600 mb-0">Our team is currently reviewing your documents. This usually takes 24-48 hours.</p>
+                    </div>
+                ) : (status === 'NOT_STARTED' || status === 'REJECTED') && profile?.rcUrl && profile?.licenseUrl && profile?.insuranceUrl ? (
+                    <div className="premium-card p-10 mb-8 bg-green-50 border-2 border-green-200 animate-bounce-subtle text-center">
+                        <div className="emoji-large mb-4">🚀</div>
+                        <h3 className="text-2xl font-bold mb-2 text-green-800">Ready for Submission!</h3>
+                        <p className="text-green-600 mb-8">All your documents are uploaded and look good. Click below to start your verification.</p>
+                        <button 
+                            className="btn btn-primary px-12 py-4 text-xl font-black shadow-2xl hover:scale-105 transition-all"
+                            onClick={handleSubmit}
+                            disabled={uploading === true}
+                        >
+                            {uploading === true ? <><span className="spinner mr-2" /> Submitting...</> : 'SUBMIT NOW'}
+                        </button>
+                    </div>
+                ) : null}
+                
+                {isApproved && (
+                   <div className="premium-card p-10 mb-8 bg-blue-600 text-white text-center">
+                      <div className="emoji-large mb-4">✅</div>
+                      <h3 className="text-2xl font-bold mb-2">You are Verified!</h3>
+                      <p className="opacity-90 mb-6">Your profile is approved. You can now go online from the driver panel and start earning.</p>
+                      <button className="btn btn-dark" onClick={() => navigate('/driver-panel')}>Go to Driver Panel</button>
+                   </div>
+                )}
+
+                <p className="text-xs text-center text-muted">
+                    Need help? Contact our support team for assistance with document uploads.
                 </p>
             </div>
         </div>

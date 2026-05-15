@@ -104,22 +104,37 @@ const AdminVerificationDashboard = ({ toast }) => {
 
         return (
             <div className="space-y-2">
-                <label className="text-[10px] uppercase font-black text-muted tracking-widest">{label}</label>
+                <div className="flex justify-between items-center">
+                    <label className="text-[10px] uppercase font-black text-muted tracking-widest">{label}</label>
+                    <a href={url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-primary hover:underline">Open Original</a>
+                </div>
                 <div className="relative group">
                     {isPdf ? (
-                        <div className="w-full h-64 bg-surface-3 rounded-xl border border-surface-2 overflow-hidden">
-                            <iframe 
-                                src={`${url}#toolbar=0`} 
+                        <div className="w-full h-80 bg-surface-3 rounded-xl border border-surface-2 overflow-hidden relative">
+                            {/* Using object tag as it often handles cross-domain better than iframe */}
+                            <object
+                                data={url}
+                                type="application/pdf"
                                 className="w-full h-full border-none"
-                                title={label}
-                            />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex-center transition-all">
-                                <a href={url} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">Full Screen Preview</a>
+                            >
+                                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                                    <span className="text-4xl mb-2">📄</span>
+                                    <p className="text-xs font-bold text-red-500 mb-4">Native Preview Blocked</p>
+                                    <a href={url} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">Download to View PDF</a>
+                                </div>
+                            </object>
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <a href={url} target="_blank" rel="noreferrer" className="btn btn-dark btn-xs bg-black/80 backdrop-blur-md border-none">
+                                    Popout Preview
+                                </a>
                             </div>
                         </div>
                     ) : (
-                        <a href={url} target="_blank" rel="noreferrer" className="block">
-                            <img src={url} alt={label} className="w-full h-48 object-cover rounded-xl border border-surface-2 hover:brightness-90 transition-all" />
+                        <a href={url} target="_blank" rel="noreferrer" className="block relative">
+                            <img src={url} alt={label} className="w-full h-56 object-cover rounded-xl border border-surface-2 hover:brightness-90 transition-all" />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex-center transition-all rounded-xl text-white text-xs font-bold">
+                                View Full Image
+                            </div>
                         </a>
                     )}
                 </div>
@@ -135,18 +150,49 @@ const AdminVerificationDashboard = ({ toast }) => {
                     <p className="text-muted">Manage driver onboarding and document approvals</p>
                 </div>
                 <div className="text-right">
-                    <div className="text-xs text-muted mb-1 flex items-center justify-end gap-1">
+                    <div className="text-xs text-muted mb-1 flex items-center justify-end gap-1 font-bold">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        Live Monitoring Active
+                        LIVE MONITORING ACTIVE
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Summary Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="card p-5 bg-orange-50 border-orange-100 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-500 text-white flex-center shadow-lg shadow-orange-500/20">
+                        <FiClock size={24} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Pending Review</div>
+                        <div className="text-2xl font-bold text-orange-900">{activeTab === 'PENDING' ? drivers.length : '...'}</div>
+                    </div>
+                </div>
+                <div className="card p-5 bg-blue-50 border-blue-100 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex-center shadow-lg shadow-blue-500/20">
+                        <FiCheckCircle size={24} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Approved Drivers</div>
+                        <div className="text-2xl font-bold text-blue-900">{activeTab === 'APPROVED' ? drivers.length : '...'}</div>
+                    </div>
+                </div>
+                <div className="card p-5 bg-red-50 border-red-100 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-red-500 text-white flex-center shadow-lg shadow-red-500/20">
+                        <FiXCircle size={24} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black text-red-600 uppercase tracking-widest">Rejected / Blocked</div>
+                        <div className="text-2xl font-bold text-red-900">{activeTab === 'REJECTED' ? drivers.length : '...'}</div>
                     </div>
                 </div>
             </div>
 
             {/* Status Tabs */}
             <div className="flex border-b border-surface-2 mb-8 overflow-x-auto">
-                <StatusTab id="PENDING" label="Pending" icon={FiClock} />
-                <StatusTab id="APPROVED" label="Approved" icon={FiCheckCircle} />
-                <StatusTab id="REJECTED" label="Rejected" icon={FiXCircle} />
+                <StatusTab id="PENDING" label="Pending Verification" icon={FiClock} />
+                <StatusTab id="APPROVED" label="Verified Drivers" icon={FiCheckCircle} />
+                <StatusTab id="REJECTED" label="Rejected Applications" icon={FiXCircle} />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">

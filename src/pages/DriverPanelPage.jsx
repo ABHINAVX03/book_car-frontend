@@ -235,8 +235,26 @@ export default function DriverPanelPage({ toast }) {
     }
   };
 
+  const refreshProfile = async ({ silent = false } = {}) => {
+    try {
+      const data = await getDriverProfile();
+      setDriverProfile(data);
+      setIsVerified(data.vehicleVerified);
+      // Only auto-update availability if not currently loading it
+      if (!availabilityLoading) {
+        setIsAvailable(data.available);
+      }
+    } catch (err) {
+      if (!silent) toast.error("Could not refresh profile data");
+    }
+  };
+
   const refreshDriverPanel = async ({ silent = false } = {}) => {
-    await Promise.all([refreshRides({ silent }), refreshIncomingRequest()]);
+    await Promise.all([
+      refreshRides({ silent }),
+      refreshIncomingRequest(),
+      refreshProfile({ silent }),
+    ]);
   };
 
   useEffect(() => {
