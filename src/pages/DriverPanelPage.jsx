@@ -169,6 +169,7 @@ export default function DriverPanelPage({ toast }) {
   const [ratedRideIds, setRatedRideIds] = useState(() => readRatedRideIds());
   const [driverProfile, setDriverProfile] = useState(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [driverCoords, setDriverCoords] = useState(null);
   const currentRideRef = useRef(currentRide);
   const rideStageRef = useRef(rideStage);
   const ratedRideIdsRef = useRef(ratedRideIds);
@@ -321,6 +322,9 @@ export default function DriverPanelPage({ toast }) {
     const THROTTLE_MS = rideStage === "started" ? 10000 : 30000;
 
     const sendLocation = (coords) => {
+      // Update local state for map immediately
+      setDriverCoords({ lat: coords.latitude, lng: coords.longitude });
+
       const now = Date.now();
       if (now - lastUpdateTimestamp < THROTTLE_MS) return;
       
@@ -815,6 +819,7 @@ export default function DriverPanelPage({ toast }) {
                         lng: incomingRequest.dropOffLocation?.coordinates[0],
                         lat: incomingRequest.dropOffLocation?.coordinates[1],
                       }}
+                      driver={driverCoords}
                     />
                   </div>
                   <div style={{ marginTop: 12, fontWeight: 700, fontSize: "1.2rem", fontFamily: "Clash Display" }}>
@@ -921,6 +926,7 @@ export default function DriverPanelPage({ toast }) {
                     lng: currentRide.dropOffLocation?.coordinates[0],
                     lat: currentRide.dropOffLocation?.coordinates[1],
                   }}
+                  driver={driverCoords}
                 />
               </div>
             </div>

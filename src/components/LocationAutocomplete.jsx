@@ -40,7 +40,13 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
             query
           )}&limit=6&addressdetails=1&countrycodes=in`,
-          { signal: controller.signal }
+          { 
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'BookCar-App/1.0',
+              'Accept-Language': 'en'
+            }
+          }
         );
         const data = await res.json();
         setSuggestions(data || []);

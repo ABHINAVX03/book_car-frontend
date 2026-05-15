@@ -926,6 +926,10 @@ export default function BookRidePage({ toast }) {
                   <RideMap
                     pickup={{ lng: activeRequest.pickupLocation?.coordinates[0], lat: activeRequest.pickupLocation?.coordinates[1] }}
                     drop={{ lng: activeRequest.dropOffLocation?.coordinates[0], lat: activeRequest.dropOffLocation?.coordinates[1] }}
+                    driver={resolvedRide?.driver?.currentLocation?.coordinates ? {
+                      lng: resolvedRide.driver.currentLocation.coordinates[0],
+                      lat: resolvedRide.driver.currentLocation.coordinates[1]
+                    } : null}
                   />
                 </div>
 
