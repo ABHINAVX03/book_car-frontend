@@ -40,6 +40,22 @@ const POLL_INTERVAL_MS = 3000;
 const SAME_LOCATION_TOLERANCE = 0.000001;
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 
+const VEHICLE_TYPES = [
+  { id: "MINI", label: "Mini", icon: "🚗", multiplier: 1.0, description: "Budget hatchbacks" },
+  { id: "SEDAN", label: "Sedan", icon: "🚕", multiplier: 1.3, description: "Spacious sedans" },
+  { id: "LUXE", label: "Luxe", icon: "💎", multiplier: 2.0, description: "Premium luxury" },
+];
+
+const SAVED_LOCATIONS = [
+  { id: "home", label: "Home", icon: "🏠", address: "Connaught Place, New Delhi", lat: 28.6315, lng: 77.2167 },
+  { id: "work", label: "Work", icon: "💼", address: "Cyber City, Gurugram", lat: 28.4948, lng: 77.0895 },
+];
+
+const isSurgeTime = () => {
+  const hour = new Date().getHours();
+  return (hour >= 8 && hour < 11) || (hour >= 18 && hour < 21);
+};
+
 const areSameCoords = (left = [], right = []) =>
   left.length === right.length &&
   left.every((value, index) =>
@@ -143,6 +159,7 @@ export default function BookRidePage({ toast }) {
     pickupLocation: null,
     dropLocation: null,
     paymentMethod: "CASH",
+    vehicleType: "MINI",
   });
 
   // ─── Wallet sync ─────────────────────────────────────────────────────────
@@ -370,6 +387,7 @@ export default function BookRidePage({ toast }) {
       pickupLocation: { type: "Point", coordinates: [pickupCoords.lng, pickupCoords.lat] },
       dropOffLocation: { type: "Point", coordinates: [dropCoords.lng, dropCoords.lat] },
       paymentMethod: form.paymentMethod,
+      vehicleType: form.vehicleType,
     };
 
     const syncFarePreview = async () => {
@@ -405,7 +423,7 @@ export default function BookRidePage({ toast }) {
 
     syncFarePreview();
     return () => { cancelled = true; };
-  }, [form.pickupLocation, form.dropLocation, form.paymentMethod, toast]);
+  }, [form.pickupLocation, form.dropLocation, form.paymentMethod, form.vehicleType, toast]);
 
   // ─── Request ride ─────────────────────────────────────────────────────────
   const handleRequest = async () => {
@@ -430,6 +448,7 @@ export default function BookRidePage({ toast }) {
       pickupLocation: { type: "Point", coordinates: [pickupCoords.lng, pickupCoords.lat] },
       dropOffLocation: { type: "Point", coordinates: [dropCoords.lng, dropCoords.lat] },
       paymentMethod: form.paymentMethod,
+      vehicleType: form.vehicleType,
     };
     try {
       const res = await requestRide(payload);
@@ -730,6 +749,22 @@ export default function BookRidePage({ toast }) {
                   onSelect={(data) => setForm((f) => ({ ...f, pickupLocation: data }))}
                   isSkeleton={rebookLoading}
                 />
+                
+                {/* Saved locations shortcuts */}
+                <div style={{ display: "flex", gap: 12, marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                  {SAVED_LOCATIONS.map(loc => (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px' }}
+                      onClick={() => setForm(f => ({ ...f, pickupLocation: { lat: loc.lat, lng: loc.lng, address: loc.address, source: 'saved' } }))}
+                    >
+                      {loc.icon} {loc.label}
+                    </button>
+                  ))}
+                </div>
+
                 {form.pickupLocation?.source === "current-location" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: "0.78rem", marginTop: -4 }}>
                     <FiMapPin />
@@ -743,6 +778,36 @@ export default function BookRidePage({ toast }) {
                   onSelect={(data) => setForm((f) => ({ ...f, dropLocation: data }))}
                   isSkeleton={rebookLoading}
                 />
+              </div>
+
+              {/* Vehicle Selection */}
+              <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                  <label className="label" style={{ margin: 0 }}>Select vehicle</label>
+                  {isSurgeTime() && (
+                    <span className="badge badge-yellow animate-pulse" style={{ background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', border: 'none', color: '#fff', fontSize: '0.7rem' }}>
+                      Surge active ⚡
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {VEHICLE_TYPES.map(type => {
+                    const isSelected = form.vehicleType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        type="button"
+                        className={`payment-method-card ${isSelected ? 'selected' : ''}`}
+                        style={{ padding: '12px 8px', textAlign: 'center' }}
+                        onClick={() => setForm(f => ({ ...f, vehicleType: type.id }))}
+                      >
+                        <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>{type.icon}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{type.label}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: 2 }}>{type.description}</div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Payment method */}
@@ -799,7 +864,9 @@ export default function BookRidePage({ toast }) {
                 <div className="premium-card" style={{ padding: "1rem", border: "1px solid var(--premium-border)", marginTop: "0.5rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: "0.9rem" }}>
                     <div>
-                      <div className="summary-label">Estimated fare</div>
+                      <div className="summary-label">
+                        Estimated fare ({VEHICLE_TYPES.find(v => v.id === form.vehicleType)?.label})
+                      </div>
                       <div className="summary-value" style={{ fontSize: "1.8rem", fontFamily: "Clash Display", letterSpacing: "-0.04em" }}>
                         ₹{farePreview.fare?.toFixed(0)}
                       </div>
