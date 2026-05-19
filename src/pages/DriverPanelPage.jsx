@@ -173,6 +173,8 @@ export default function DriverPanelPage({ toast }) {
   const currentRideRef = useRef(currentRide);
   const rideStageRef = useRef(rideStage);
   const ratedRideIdsRef = useRef(ratedRideIds);
+  const incomingRequestRef = useRef(incomingRequest);
+  const isAvailableRef = useRef(isAvailable);
   const ridesSyncInFlightRef = useRef(false);
   const incomingSyncInFlightRef = useRef(false);
   const walletSyncInFlightRef = useRef(false);
@@ -180,6 +182,8 @@ export default function DriverPanelPage({ toast }) {
   currentRideRef.current = currentRide;
   rideStageRef.current = rideStage;
   ratedRideIdsRef.current = ratedRideIds;
+  incomingRequestRef.current = incomingRequest;
+  isAvailableRef.current = isAvailable;
 
   const refreshWallet = async ({ silent = false } = {}) => {
     if (walletSyncInFlightRef.current) return;
@@ -288,8 +292,10 @@ export default function DriverPanelPage({ toast }) {
     
     refreshDriverPanel();
     
-    let timerId;
+    let timerId = null;
+    let cancelled = false;
     const poll = async () => {
+      if (cancelled) return;
       await refreshDriverPanel({ silent: true });
       
       // Adaptive backoff: 
@@ -298,16 +304,21 @@ export default function DriverPanelPage({ toast }) {
       // - 6s if idle online
       // - 15s if offline
       let nextInterval = 6000;
-      if (incomingRequest) nextInterval = 2000;
-      else if (rideStage === "started") nextInterval = 3000;
-      else if (!isAvailable) nextInterval = 15000;
+      if (incomingRequestRef.current) nextInterval = 2000;
+      else if (rideStageRef.current === "started") nextInterval = 3000;
+      else if (!isAvailableRef.current) nextInterval = 15000;
       
-      timerId = setTimeout(poll, nextInterval);
+      if (!cancelled) {
+        timerId = setTimeout(poll, nextInterval);
+      }
     };
 
     timerId = setTimeout(poll, POLL_INTERVAL_MS);
-    return () => clearTimeout(timerId);
-  }, [isDriver, incomingRequest, rideStage, isAvailable, toast]);
+    return () => {
+      cancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [isDriver]);
 
   useEffect(() => {
     if (!isDriver) return undefined;

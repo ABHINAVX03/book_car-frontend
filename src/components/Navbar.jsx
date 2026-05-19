@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { logoutSession } from "../services/api";
 import {
   FiBarChart2,
   FiCompass,
@@ -39,12 +40,9 @@ export default function Navbar({ toast }) {
 
   const handleLogout = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app"}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (e) {
-      console.warn("Backend logout failed:", e);
+      await logoutSession();
+    } catch {
+      // best-effort logout; local session will still clear
     }
     logout();
     toast?.success("You have been signed out.");

@@ -16,17 +16,6 @@ export default function LoginPage({ toast }) {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const parseJwt = (jwt) => {
-    try {
-      const base64Url = jwt.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
-      return JSON.parse(jsonPayload);
-    } catch {
-      return null;
-    }
-  };
-
   const normalizeRoles = (roles) => {
     if (!roles) return [];
     if (Array.isArray(roles)) return roles;
@@ -60,46 +49,18 @@ export default function LoginPage({ toast }) {
     setLoading(true);
     try {
       const res = await apiLogin(form);
-
-      const token = res?.token || res?.accessToken || res?.jwt || res?.authToken || null;
       let user = res?.user || res?.data || res;
       let roles = normalizeRoles(user?.roles || []);
-      let decodedRoles = [];
-
-      if (!user?.name || !user?.email) {
-        if (!token) {
-          throw new Error('Login failed: missing authentication token');
-        }
-
-        const decoded = parseJwt(token);
-        if (decoded?.email) {
-          decodedRoles = normalizeRoles(decoded.roles || decoded.authorities || decoded.role || []);
-          user = {
-            name: decoded.name || decoded.email.split('@')[0] || '',
-            email: decoded.email,
-            phoneNumber: decoded.phoneNumber || decoded.phone || getCachedPhoneNumber(decoded.email),
-            roles: decodedRoles,
-          };
-          roles = decodedRoles;
-        }
-
-        if (!user?.email) {
-          // Save the token first so profile calls include it
-          login({ name: '', email: '', roles: [] }, token);
-
-          try {
-            user = await getRiderProfile();
-            roles = Array.from(new Set([...decodedRoles, ...normalizeRoles(user?.roles || ['RIDER'])]));
-          } catch {
-            const driverProfile = await getDriverProfile();
-            user = driverProfile;
-            roles = Array.from(new Set([...decodedRoles, ...normalizeRoles(user?.roles || ['DRIVER'])]));
-          }
-        }
-      }
 
       if (!user || !user?.email) {
-        throw new Error('Login failed: no user data returned');
+        try {
+          user = await getRiderProfile();
+          roles = normalizeRoles(user?.roles || ["RIDER"]);
+        } catch {
+          const driverProfile = await getDriverProfile();
+          user = driverProfile;
+          roles = normalizeRoles(user?.roles || ["DRIVER"]);
+        }
       }
 
       login({
@@ -107,7 +68,7 @@ export default function LoginPage({ toast }) {
         email: user.email,
         phoneNumber: user.phoneNumber || getCachedPhoneNumber(user.email),
         roles: roles.length ? roles : ['RIDER'],
-      }, token);
+      });
       const successMessage = {
         title: `Welcome back, ${user.name || 'there'}`,
         description: "Your account is ready and your dashboard is loading now.",

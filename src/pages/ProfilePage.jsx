@@ -11,7 +11,7 @@ import {
   getRiderRides,
   getDriverRides,
   verifyRiderWalletPayment,
-  refreshAccessToken,
+  logoutSession,
   sendOtp,
   verifyOtp,
 } from "../services/api";
@@ -71,7 +71,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function ProfilePage({ toast }) {
   const navigate = useNavigate();
-  const { user, isDriver, isRider, logout, login, token } = useAuth();
+  const { user, isDriver, isRider, logout, login } = useAuth();
   const canUseRiderWallet = isRider;
   const canUseDriverWallet = isDriver;
   const [walletView, setWalletView] = useState(() => {
@@ -171,13 +171,7 @@ export default function ProfilePage({ toast }) {
       } catch {
         /* ignore */
       }
-      let nextToken = token || localStorage.getItem('token');
-      try {
-        nextToken = await refreshAccessToken();
-      } catch {
-        /* keep existing token; user may need to sign in again for DRIVER routes */
-      }
-      login({ ...user, roles: ['DRIVER'] }, nextToken);
+      login({ ...user, roles: ['DRIVER'] });
       toast.success(`Driver profile activated for vehicle ${d.vehicleId}.`);
       setOnboarding(false);
     } catch (e) {
@@ -219,10 +213,16 @@ export default function ProfilePage({ toast }) {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    toast.success("You have been signed out.");
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await logoutSession();
+    } catch {
+      // best-effort cookie revocation
+    } finally {
+      logout();
+      toast.success("You have been signed out.");
+      navigate("/");
+    }
   };
 
   const handleWalletAction = async (action) => {

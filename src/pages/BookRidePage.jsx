@@ -67,31 +67,6 @@ const parseCoordinate = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const toRadians = (value) => (value * Math.PI) / 180;
-
-const calculateDistanceInKm = (pickup, drop) => {
-  const earthRadiusKm = 6371;
-  const latDistance = toRadians(drop.lat - pickup.lat);
-  const lngDistance = toRadians(drop.lng - pickup.lng);
-  const originLat = toRadians(pickup.lat);
-  const destinationLat = toRadians(drop.lat);
-  const haversine =
-    Math.sin(latDistance / 2) ** 2 +
-    Math.cos(originLat) *
-    Math.cos(destinationLat) *
-    Math.sin(lngDistance / 2) ** 2;
-  const arc = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-  return earthRadiusKm * arc;
-};
-
-const getFallbackEstimatedFare = (pickup, drop) => {
-  const distanceInKm = calculateDistanceInKm(pickup, drop);
-  const baseFare = 65;
-  const perKmFare = 18;
-  const bookingFee = 24;
-  return Math.max(99, Math.round(baseFare + distanceInKm * perKmFare + bookingFee));
-};
-
 const getCurrentPosition = () =>
   new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -153,7 +128,6 @@ export default function BookRidePage({ toast }) {
   const [razorpayPaymentLoading, setRazorpayPaymentLoading] = useState(false);
   const [razorpayPaid, setRazorpayPaid] = useState(false);
   const cancelInFlightRef = useRef(false);
-  const fareFallbackNoticeShownRef = useRef(false);
 
   const [form, setForm] = useState({
     pickupLocation: null,
@@ -403,18 +377,8 @@ export default function BookRidePage({ toast }) {
         });
       } catch (error) {
         if (!cancelled) {
-          const fallbackFare = getFallbackEstimatedFare(pickupCoords, dropCoords);
-          setFarePreview({ fare: fallbackFare, paymentMethod: form.paymentMethod });
-          if (
-            (error?.status === 404 ||
-              String(error?.message || "").toLowerCase().includes("no static resource riders/estimatefare")) &&
-            !fareFallbackNoticeShownRef.current
-          ) {
-            fareFallbackNoticeShownRef.current = true;
-            toast.info("Backend fare preview is not active yet.");
-          } else if (error?.status !== 404) {
-            toast.error(error.message || "Could not estimate fare");
-          }
+          setFarePreview(null);
+          toast.error(error.message || "Could not estimate fare. Please try again in a moment.");
         }
       } finally {
         if (!cancelled) setFarePreviewLoading(false);

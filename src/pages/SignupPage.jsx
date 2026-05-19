@@ -66,20 +66,7 @@ export default function SignupPage({ toast }) {
       const uid = user?.id ?? user?.userId ?? user?.data?.id;
       setUserId(uid);
 
-      let token = user?.token || user?.accessToken || user?.jwt || user?.authToken || null;
-      if (!token) {
-        const loginResponse = await apiLogin({ email: form.email, password: form.password });
-        token =
-          loginResponse?.token ||
-          loginResponse?.accessToken ||
-          loginResponse?.jwt ||
-          loginResponse?.authToken ||
-          null;
-      }
-
-      if (!token) {
-        throw new Error("Account was created, but login token was not returned. Please sign in again.");
-      }
+      await apiLogin({ email: form.email, password: form.password });
 
       if (mode === 'driver') {
         try {
@@ -95,7 +82,6 @@ export default function SignupPage({ toast }) {
             phoneNumber: user?.phoneNumber || payload.phoneNumber,
             roles: ["DRIVER"],
           },
-          token,
         );
         setStep(2);
         toast.success({
@@ -107,8 +93,8 @@ export default function SignupPage({ toast }) {
         let profileUser = user;
         let roles = profileUser?.user?.roles || profileUser?.roles || ['RIDER'];
 
-        if ((!(profileUser?.user?.name || profileUser?.name) || !(profileUser?.user?.email || profileUser?.email) || !(profileUser?.user?.phoneNumber || profileUser?.phoneNumber)) && token) {
-          login({ name: '', email: '', roles: [] }, token);
+        if (!(profileUser?.user?.name || profileUser?.name) || !(profileUser?.user?.email || profileUser?.email) || !(profileUser?.user?.phoneNumber || profileUser?.phoneNumber)) {
+          login({ name: '', email: '', roles: [] });
           try {
             profileUser = await getRiderProfile();
             roles = profileUser?.user?.roles || profileUser?.roles || ['RIDER'];
@@ -124,7 +110,7 @@ export default function SignupPage({ toast }) {
           email: profileUser?.user?.email || profileUser?.email || user.email,
           phoneNumber: profileUser?.user?.phoneNumber || profileUser?.phoneNumber || user.phoneNumber || payload.phoneNumber,
           roles: roles,
-        }, token);
+        });
         toast.success({
           title: `Welcome to BookCar, ${profileUser?.name || user.name}!`,
           description: "Your account is ready and your dashboard is waiting.",
@@ -203,21 +189,14 @@ export default function SignupPage({ toast }) {
       } catch {
         /* ignore */
       }
-      const loginResponse = await apiLogin({ email: form.email, password: form.password });
-      const token =
-        loginResponse?.token ||
-        loginResponse?.accessToken ||
-        loginResponse?.jwt ||
-        loginResponse?.authToken ||
-        localStorage.getItem('token') ||
-        null;
+      await apiLogin({ email: form.email, password: form.password });
 
       login({
         name: createdUser?.name || form.name || form.email,
         email: createdUser?.email || form.email,
         phoneNumber: createdUser?.phoneNumber || formatPhoneNumber(form.phoneNumber),
         roles: ['DRIVER'],
-      }, token);
+      });
       toast.success({
         title: "Driver profile activated",
         description: `Vehicle ${driver.vehicleId} is now ready for driver mode.`,

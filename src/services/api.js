@@ -1,41 +1,58 @@
-import { expireAuth, getStoredToken, isTokenExpired } from "../utils/authToken";
+import { expireAuth } from "../utils/authToken";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://bookkaro-backend-spring-boot-production.up.railway.app";
+const BASE_URL = import.meta.env.VITE_API_URL || "";
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
 
 let refreshPromise = null;
+
+const withTimeout = (options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const externalSignal = options.signal;
+
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return {
+    options: { ...options, signal: controller.signal },
+    clear: () => clearTimeout(timeoutId),
+  };
+};
+
+const buildUrl = (path) => `${BASE_URL}${path}`;
+
+const parseResponse = async (res) => {
+  if (res.status === 204) return null;
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const error = new Error(json?.error?.message || json?.message || text || `HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
+  if (json?.error) {
+    throw new Error(json.error.message || json.error || "API Error");
+  }
+  return json?.data ?? json;
+};
 
 const callRefreshToken = async () => {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
+    const timed = withTimeout({
+      method: "POST",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
     try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        credentials: 'include',
-      });
-      
-      if (res.status === 401 || res.status === 403) {
-        throw new Error('Refresh token invalid');
-      }
-
-      const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
-
-      if (!res.ok || json?.error) {
-        throw new Error('Refresh failed');
-      }
-
-      // Handle both { accessToken: "..." } and { data: { accessToken: "..." } }
-      const newToken = json?.data?.accessToken || json?.accessToken;
-      if (newToken) {
-        window.localStorage.setItem('token', newToken);
-        return newToken;
-      }
-      throw new Error('No access token in refresh response');
-    } catch (e) {
+      const res = await fetch(buildUrl("/auth/refresh"), timed.options).finally(timed.clear);
+      return await parseResponse(res);
+    } catch (error) {
       expireAuth();
-      throw e;
+      throw error;
     } finally {
       refreshPromise = null;
     }
@@ -44,118 +61,41 @@ const callRefreshToken = async () => {
   return refreshPromise;
 };
 
-/** Refreshes access token using the httpOnly refresh cookie. */
 export const refreshAccessToken = () => callRefreshToken();
 
-const shouldAttemptRefreshForError = (status, message = "") => {
-  const msg = message.toLowerCase();
-  // Standard expired messages from Spring Security / JJWT
-  if (
-    msg.includes('jwt expired') ||
-    msg.includes('token expired') ||
-    msg.includes('session expired') ||
-    msg.includes('invalid token') ||
-    msg.includes('token invalid')
-  ) {
-    return true;
-  }
-  // 401 is the standard for unauthenticated (expired/missing token)
-  if (status === 401) return true;
-  // Some filters might return 403 for expired tokens if they misinterpret it as missing authority
-  if (status === 403 && (
-    msg.includes('access denied') ||
-    msg.includes('forbidden') ||
-    msg.includes('full authentication') ||
-    msg === '' 
-  )) {
-    return true;
-  }
-  return false;
-};
-
-const fetchJson = async (url, options = {}) => {
-  let token = getStoredToken();
-  let isRetrying = false;
-
-  // Pre-emptive refresh if we know the token is dead
-  if (token && isTokenExpired(token)) {
-    try {
-      token = await callRefreshToken();
-    } catch (e) {
-      token = null; // Proceed as guest or let the 401 happen
-    }
-  }
-
-  const doFetch = async (currentToken) => {
-    const headers = {
-      Accept: 'application/json',
-      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
-      ...options.headers,
-    };
-
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    return await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include', // CRITICAL for cross-origin refresh cookies
-    });
+const fetchJson = async (path, options = {}, { retryOnAuth = true } = {}) => {
+  const headers = {
+    Accept: "application/json",
+    ...options.headers,
   };
 
-  let res = await doFetch(token);
-  
-  // Handle empty responses (204 No Content)
-  if (res.status === 204) return null;
-
-  const text = await res.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
+  if (!(options.body instanceof FormData) && options.body != null && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
 
-  if (!res.ok) {
-    const message = json?.error?.message || json?.message || text || `HTTP ${res.status}`;
-    
-    // Attempt rotation/refresh on 401/expired
-    if (shouldAttemptRefreshForError(res.status, message) && !isRetrying) {
-      isRetrying = true;
+  const timed = withTimeout({
+    ...options,
+    headers,
+    credentials: "include",
+  });
+
+  try {
+    const response = await fetch(buildUrl(path), timed.options);
+    return await parseResponse(response);
+  } catch (error) {
+    if (retryOnAuth && (error?.status === 401 || error?.status === 403) && !path.startsWith("/auth/")) {
       try {
-        const newToken = await callRefreshToken();
-        // Retry with new token
-        res = await doFetch(newToken);
-        if (res.ok) {
-          if (res.status === 204) return null;
-          const retryText = await res.text();
-          let retryJson = null;
-          try { retryJson = retryText ? JSON.parse(retryText) : null; } catch {}
-          return retryJson?.data ?? retryJson;
-        }
-      } catch (e) {
-        // If refresh fails, we must force logout
+        await callRefreshToken();
+        return await fetchJson(path, options, { retryOnAuth: false });
+      } catch (refreshError) {
         expireAuth();
-        const error = new Error('Session expired. Please login again.');
-        error.status = 401;
-        throw error;
+        throw refreshError?.status ? refreshError : error;
       }
     }
-
-    // Final error state
-    const finalMessage = json?.error?.message || json?.message || `HTTP ${res.status}`;
-    const error = new Error(finalMessage);
-    error.status = res.status;
-    error.url = url;
     throw error;
+  } finally {
+    timed.clear();
   }
-
-  if (json?.error) {
-    throw new Error(json.error.message || json.error || 'API Error');
-  }
-
-  return json?.data ?? json;
 };
 
 const shouldTryWalletFallback = (error) => [400, 403, 404, 405].includes(error?.status);
@@ -173,75 +113,62 @@ const tryWalletMutationVariants = async (variants = []) => {
   throw lastError || new Error("Wallet action failed");
 };
 
-// ─── AUTH ────────────────────────────────────────────────────────────────────
-export const signup = (data) => fetchJson(`${BASE_URL}/auth/signup`, { method: 'POST', body: JSON.stringify(data) });
-export const login = (data) => fetchJson(`${BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify(data) });
-export const sendOtp = (phoneNumber) => fetchJson(`${BASE_URL}/auth/send-otp`, { method: 'POST', body: JSON.stringify({ phoneNumber }) });
-export const verifyOtp = (phoneNumber, otp) => fetchJson(`${BASE_URL}/auth/verify-otp`, { method: 'POST', body: JSON.stringify({ phoneNumber, otp }) });
+export const signup = (data) => fetchJson("/auth/signup", { method: "POST", body: JSON.stringify(data) });
+export const login = (data) => fetchJson("/auth/login", { method: "POST", body: JSON.stringify(data) });
+export const logoutSession = () => fetchJson("/auth/logout", { method: "POST" }, { retryOnAuth: false });
+export const getCurrentUser = () => fetchJson("/auth/me");
+export const sendOtp = (phoneNumber) => fetchJson("/auth/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber }) });
+export const verifyOtp = (phoneNumber, otp) => fetchJson("/auth/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber, otp }) });
 
-export const onboardDriver = async (userId, vehicleId, vehicleType = 'MINI', phoneNumber) => {
-  const payload = { method: 'POST', body: JSON.stringify({ vehicleId, vehicleType, phoneNumber }) };
-  if (userId) {
-    try {
-      return await fetchJson(`${BASE_URL}/auth/onBoardNewDriver/${userId}`, payload);
-    } catch (error) {
-      if (error.message?.toLowerCase().includes('access denied')) {
-        return await fetchJson(`${BASE_URL}/auth/onBoardNewDriver`, payload);
-      }
-      throw error;
-    }
-  }
-  return fetchJson(`${BASE_URL}/auth/onBoardNewDriver`, payload);
-};
+export const onboardDriver = (userId, vehicleId, vehicleType = "MINI", phoneNumber) =>
+  fetchJson(`/auth/onBoardNewDriver/${userId}`, {
+    method: "POST",
+    body: JSON.stringify({ vehicleId, vehicleType, phoneNumber }),
+  });
 
-// ─── RIDER ───────────────────────────────────────────────────────────────────
-export const estimateRideFare = (data) => fetchJson(`${BASE_URL}/riders/estimateFare`, { method: 'POST', body: JSON.stringify(data) });
-export const requestRide = (data) => fetchJson(`${BASE_URL}/riders/requestRide`, { method: 'POST', body: JSON.stringify(data) });
-export const cancelRideRequestRider = (id) => fetchJson(`${BASE_URL}/riders/cancelRideRequest/${id}`, { method: 'POST' });
-export const cancelRideRider = (id) => fetchJson(`${BASE_URL}/riders/cancelRide/${id}`, { method: 'POST' });
-export const rateDriverByBody = (rideId, rating) => fetchJson(`${BASE_URL}/riders/rateDriver`, { method: 'POST', body: JSON.stringify({ rideId, rating }) });
-export const getRiderProfile = () => fetchJson(`${BASE_URL}/riders/getMyProfile`);
-export const updateRiderProfile = (data) => fetchJson(`${BASE_URL}/riders/updateProfile`, { method: 'PUT', body: JSON.stringify(data) });
-export const getRiderRides = (pageOffset = 0, pageSize = 10) => fetchJson(`${BASE_URL}/riders/getMyRides?pageOffset=${pageOffset}&pageSize=${pageSize}`);
-export const getCurrentRide = () => fetchJson(`${BASE_URL}/riders/currentRide`).catch((err) => { if (err?.status === 204) return null; throw err; });
-export const getRiderWallet = () => fetchJson(`${BASE_URL}/riders/wallet`);
-export const addMoneyToRiderWallet = (amount) => tryWalletMutationVariants([{ url: `${BASE_URL}/riders/wallet/addMoney`, options: { method: 'POST', body: JSON.stringify({ amount }) } }, { url: `${BASE_URL}/riders/wallet/add-money`, options: { method: 'POST', body: JSON.stringify({ amount }) } }]);
-export const createRiderWalletPaymentOrder = (amount) => fetchJson(`${BASE_URL}/riders/wallet/payment-order`, { method: 'POST', body: JSON.stringify({ amount }) });
-export const verifyRiderWalletPayment = (data) => fetchJson(`${BASE_URL}/riders/wallet/verify-payment`, { method: 'POST', body: JSON.stringify(data) });
-export const withdrawMoneyFromRiderWallet = (amount) => fetchJson(`${BASE_URL}/riders/wallet/withdraw`, { method: 'POST', body: JSON.stringify({ amount }) });
+export const estimateRideFare = (data) => fetchJson("/riders/estimateFare", { method: "POST", body: JSON.stringify(data) });
+export const requestRide = (data) => fetchJson("/riders/requestRide", { method: "POST", body: JSON.stringify(data) });
+export const cancelRideRequestRider = (id) => fetchJson(`/riders/cancelRideRequest/${id}`, { method: "POST" });
+export const cancelRideRider = (id) => fetchJson(`/riders/cancelRide/${id}`, { method: "POST" });
+export const rateDriverByBody = (rideId, rating) => fetchJson("/riders/rateDriver", { method: "POST", body: JSON.stringify({ rideId, rating }) });
+export const getRiderProfile = () => fetchJson("/riders/getMyProfile");
+export const updateRiderProfile = (data) => fetchJson("/riders/updateProfile", { method: "PUT", body: JSON.stringify(data) });
+export const getRiderRides = (pageOffset = 0, pageSize = 10) => fetchJson(`/riders/getMyRides?pageOffset=${pageOffset}&pageSize=${pageSize}`);
+export const getCurrentRide = () => fetchJson("/riders/currentRide").catch((err) => { if (err?.status === 204) return null; throw err; });
+export const getRiderWallet = () => fetchJson("/riders/wallet");
+export const addMoneyToRiderWallet = (amount) => tryWalletMutationVariants([{ url: "/riders/wallet/addMoney", options: { method: "POST", body: JSON.stringify({ amount }) } }, { url: "/riders/wallet/add-money", options: { method: "POST", body: JSON.stringify({ amount }) } }]);
+export const createRiderWalletPaymentOrder = (amount) => fetchJson("/riders/wallet/payment-order", { method: "POST", body: JSON.stringify({ amount }) });
+export const verifyRiderWalletPayment = (data) => fetchJson("/riders/wallet/verify-payment", { method: "POST", body: JSON.stringify(data) });
+export const withdrawMoneyFromRiderWallet = (amount) => fetchJson("/riders/wallet/withdraw", { method: "POST", body: JSON.stringify({ amount }) });
 
-// ─── DRIVER ──────────────────────────────────────────────────────────────────
-export const getIncomingRideRequest = () => fetchJson(`${BASE_URL}/drivers/getIncomingRideRequest`);
-export const acceptRide = (rideRequestId) => fetchJson(`${BASE_URL}/drivers/acceptRide/${rideRequestId}`, { method: 'POST' });
-export const startRide = (rideId, otp) => fetchJson(`${BASE_URL}/drivers/startRide/${rideId}`, { method: 'POST', body: JSON.stringify({ otp }) });
-export const endRide = (rideId) => fetchJson(`${BASE_URL}/drivers/endRide/${rideId}`, { method: 'POST' });
-export const cancelRideDriver = (rideId) => fetchJson(`${BASE_URL}/drivers/cancelRide/${rideId}`, { method: 'POST' });
-export const rateRiderByBody = (rideId, rating) => fetchJson(`${BASE_URL}/drivers/rateRider`, { method: 'POST', body: JSON.stringify({ rideId, rating }) });
-export const getDriverProfile = () => fetchJson(`${BASE_URL}/drivers/getMyProfile`);
-export const updateDriverProfile = (data) => fetchJson(`${BASE_URL}/drivers/updateProfile`, { method: 'PUT', body: JSON.stringify(data) });
-export const getDriverRides = (pageOffset = 0, pageSize = 10) => fetchJson(`${BASE_URL}/drivers/getMyRides?pageOffset=${pageOffset}&pageSize=${pageSize}`);
-export const getDriverWallet = () => fetchJson(`${BASE_URL}/drivers/wallet`);
-export const addMoneyToDriverWallet = (amount) => fetchJson(`${BASE_URL}/drivers/wallet/addMoney`, { method: 'POST', body: JSON.stringify({ amount }) });
-export const withdrawMoneyFromDriverWallet = (amount) => fetchJson(`${BASE_URL}/drivers/wallet/withdraw`, { method: 'POST', body: JSON.stringify({ amount }) });
-export const updateDriverLocation = (longitude, latitude) => fetchJson(`${BASE_URL}/drivers/updateLocation`, { method: 'PATCH', body: JSON.stringify({ coordinates: [longitude, latitude] }) });
-export const updateDriverAvailability = (available) => fetchJson(`${BASE_URL}/drivers/availability`, { method: 'PATCH', body: JSON.stringify({ available }) });
-export const submitVerification = () => fetchJson(`${BASE_URL}/drivers/submit-verification`, { method: 'POST' });
+export const getIncomingRideRequest = () => fetchJson("/drivers/getIncomingRideRequest");
+export const acceptRide = (rideRequestId) => fetchJson(`/drivers/acceptRide/${rideRequestId}`, { method: "POST" });
+export const startRide = (rideId, otp) => fetchJson(`/drivers/startRide/${rideId}`, { method: "POST", body: JSON.stringify({ otp }) });
+export const endRide = (rideId) => fetchJson(`/drivers/endRide/${rideId}`, { method: "POST" });
+export const cancelRideDriver = (rideId) => fetchJson(`/drivers/cancelRide/${rideId}`, { method: "POST" });
+export const rateRiderByBody = (rideId, rating) => fetchJson("/drivers/rateRider", { method: "POST", body: JSON.stringify({ rideId, rating }) });
+export const getDriverProfile = () => fetchJson("/drivers/getMyProfile");
+export const updateDriverProfile = (data) => fetchJson("/drivers/updateProfile", { method: "PUT", body: JSON.stringify(data) });
+export const getDriverRides = (pageOffset = 0, pageSize = 10) => fetchJson(`/drivers/getMyRides?pageOffset=${pageOffset}&pageSize=${pageSize}`);
+export const getDriverWallet = () => fetchJson("/drivers/wallet");
+export const addMoneyToDriverWallet = (amount) => fetchJson("/drivers/wallet/addMoney", { method: "POST", body: JSON.stringify({ amount }) });
+export const withdrawMoneyFromDriverWallet = (amount) => fetchJson("/drivers/wallet/withdraw", { method: "POST", body: JSON.stringify({ amount }) });
+export const updateDriverLocation = (longitude, latitude) => fetchJson("/drivers/updateLocation", { method: "PATCH", body: JSON.stringify({ coordinates: [longitude, latitude] }) });
+export const updateDriverAvailability = (available) => fetchJson("/drivers/availability", { method: "PATCH", body: JSON.stringify({ available }) });
+export const submitVerification = () => fetchJson("/drivers/submit-verification", { method: "POST" });
 
-// ─── ADMIN ───────────────────────────────────────────────────────────────────
-export const getAdminRevenue = (page = 0, size = 15) => fetchJson(`${BASE_URL}/admin/revenue?pageOffset=${page}&pageSize=${size}`);
-export const getAllDriversByStatus = (status = 'PENDING', page = 0) => fetchJson(`${BASE_URL}/admin/drivers?status=${status}&pageOffset=${page}`, { method: 'GET' });
-export const approveDriver = (id) => fetchJson(`${BASE_URL}/admin/drivers/${id}/approve`, { method: 'PUT' });
-export const rejectDriver = (id, reason) => fetchJson(`${BASE_URL}/admin/drivers/${id}/reject`, { method: 'PUT', body: JSON.stringify({ rejectionReason: reason }) });
-export const blockDriver = (id) => fetchJson(`${BASE_URL}/admin/drivers/${id}/block`, { method: 'POST' });
-export const unblockDriver = (id) => fetchJson(`${BASE_URL}/admin/drivers/${id}/unblock`, { method: 'POST' });
+export const getAdminRevenue = (page = 0, size = 15) => fetchJson(`/admin/revenue?pageOffset=${page}&pageSize=${size}`, { method: "GET" });
+export const getAllDriversByStatus = (status = "PENDING", page = 0) => fetchJson(`/admin/drivers?status=${status}&pageOffset=${page}`, { method: "GET" });
+export const approveDriver = (id) => fetchJson(`/admin/drivers/${id}/approve`, { method: "PUT" });
+export const rejectDriver = (id, reason) => fetchJson(`/admin/drivers/${id}/reject`, { method: "PUT", body: JSON.stringify({ rejectionReason: reason }) });
+export const blockDriver = (id) => fetchJson(`/admin/drivers/${id}/block`, { method: "POST" });
+export const unblockDriver = (id) => fetchJson(`/admin/drivers/${id}/unblock`, { method: "POST" });
 
-// ─── PAYMENTS ────────────────────────────────────────────────────────────────
-export const createRidePaymentOrder = (rideId) => fetchJson(`${BASE_URL}/riders/rides/${rideId}/payment-order`, { method: 'POST' });
-export const verifyRidePayment = (rideId, data) => fetchJson(`${BASE_URL}/riders/rides/${rideId}/verify-ride-payment`, { method: 'POST', body: JSON.stringify(data) });
+export const createRidePaymentOrder = (rideId) => fetchJson(`/riders/rides/${rideId}/payment-order`, { method: "POST" });
+export const verifyRidePayment = (rideId, data) => fetchJson(`/riders/rides/${rideId}/verify-ride-payment`, { method: "POST", body: JSON.stringify(data) });
 
-// ─── VERIFICATION ─────────────────────────────────────────────────────────────
 export const uploadDriverDoc = (docType, file) => {
   const formData = new FormData();
-  formData.append('file', file);
-  return fetchJson(`${BASE_URL}/drivers/upload/${docType}`, { method: 'POST', body: formData });
+  formData.append("file", file);
+  return fetchJson(`/drivers/upload/${docType}`, { method: "POST", body: formData });
 };
