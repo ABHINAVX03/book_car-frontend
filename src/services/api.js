@@ -3,23 +3,13 @@ import { expireAuth, getStoredAccessToken, getStoredRefreshToken, setStoredToken
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
 
-let accessToken = getStoredAccessToken();
-let refreshToken = getStoredRefreshToken();
 let refreshPromise = null;
 
 const syncStoredTokens = (newAccessToken, newRefreshToken) => {
-  if (newAccessToken) {
-    accessToken = newAccessToken;
-  }
-  if (newRefreshToken) {
-    refreshToken = newRefreshToken;
-  }
-  setStoredTokens(accessToken, refreshToken);
+  setStoredTokens(newAccessToken, newRefreshToken);
 };
 
 const clearTokens = () => {
-  accessToken = null;
-  refreshToken = null;
   clearStoredAuth();
 };
 
@@ -60,7 +50,7 @@ const callRefreshToken = async () => {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const currentRefreshToken = refreshToken || getStoredRefreshToken();
+    const currentRefreshToken = getStoredRefreshToken();
     const headers = { Accept: "application/json" };
     const options = {
       method: "POST",
@@ -109,7 +99,8 @@ const fetchJson = async (path, options = {}, { retryOnAuth = true } = {}) => {
     headers["Content-Type"] = "application/json";
   }
 
-  const currentAccessToken = accessToken || getStoredAccessToken();
+  // Always read fresh token from storage
+  const currentAccessToken = getStoredAccessToken();
   if (currentAccessToken && !headers["Authorization"] && !headers["authorization"]) {
     headers["Authorization"] = `Bearer ${currentAccessToken}`;
   }
