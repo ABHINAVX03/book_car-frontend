@@ -101,6 +101,14 @@ const fetchJson = async (path, options = {}, { retryOnAuth = true } = {}) => {
     ...options.headers,
   };
 
+  // Set Content-Type for POST/PUT/PATCH requests with body
+  if ((options.method === "POST" || options.method === "PUT" || options.method === "PATCH") && 
+      options.body && 
+      typeof options.body === "string" && 
+      !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const currentAccessToken = accessToken || getStoredAccessToken();
   if (currentAccessToken && !headers["Authorization"] && !headers["authorization"]) {
     headers["Authorization"] = `Bearer ${currentAccessToken}`;
