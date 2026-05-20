@@ -1,9 +1,27 @@
-import { expireAuth } from "../utils/authToken";
+import { expireAuth, getStoredAccessToken, getStoredRefreshToken, setStoredTokens, clearStoredAuth } from "../utils/authToken";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
 
+let accessToken = getStoredAccessToken();
+let refreshToken = getStoredRefreshToken();
 let refreshPromise = null;
+
+const syncStoredTokens = (newAccessToken, newRefreshToken) => {
+  if (newAccessToken) {
+    accessToken = newAccessToken;
+  }
+  if (newRefreshToken) {
+    refreshToken = newRefreshToken;
+  }
+  setStoredTokens(accessToken, refreshToken);
+};
+
+const clearTokens = () => {
+  accessToken = null;
+  refreshToken = null;
+  clearStoredAuth();
+};
 
 const withTimeout = (options = {}) => {
   const controller = new AbortController();
@@ -42,15 +60,29 @@ const callRefreshToken = async () => {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const timed = withTimeout({
+    const currentRefreshToken = refreshToken || getStoredRefreshToken();
+    const headers = { Accept: "application/json" };
+    const options = {
       method: "POST",
-      headers: { Accept: "application/json" },
+      headers,
       credentials: "include",
-    });
+    };
+
+    if (currentRefreshToken) {
+      headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify({ refreshToken: currentRefreshToken });
+    }
+
+    const timed = withTimeout(options);
     try {
       const res = await fetch(buildUrl("/auth/refresh"), timed.options).finally(timed.clear);
-      return await parseResponse(res);
+      const data = await parseResponse(res);
+      if (data?.accessToken || data?.refreshToken) {
+        syncStoredTokens(data?.accessToken, data?.refreshToken);
+      }
+      return data;
     } catch (error) {
+      clearTokens();
       expireAuth();
       throw error;
     } finally {
@@ -69,8 +101,9 @@ const fetchJson = async (path, options = {}, { retryOnAuth = true } = {}) => {
     ...options.headers,
   };
 
-  if (!(options.body instanceof FormData) && options.body != null && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json";
+  const currentAccessToken = accessToken || getStoredAccessToken();
+  if (currentAccessToken && !headers["Authorization"] && !headers["authorization"]) {
+    headers["Authorization"] = `Bearer ${currentAccessToken}`;
   }
 
   const timed = withTimeout({
@@ -88,6 +121,7 @@ const fetchJson = async (path, options = {}, { retryOnAuth = true } = {}) => {
         await callRefreshToken();
         return await fetchJson(path, options, { retryOnAuth: false });
       } catch (refreshError) {
+        clearTokens();
         expireAuth();
         throw refreshError?.status ? refreshError : error;
       }
@@ -115,7 +149,15 @@ const tryWalletMutationVariants = async (variants = []) => {
 
 export const signup = (data) => fetchJson("/auth/signup", { method: "POST", body: JSON.stringify(data) });
 export const login = (data) => fetchJson("/auth/login", { method: "POST", body: JSON.stringify(data) });
-export const logoutSession = () => fetchJson("/auth/logout", { method: "POST" }, { retryOnAuth: false });
+export const logoutSession = () => {
+  const refreshToken = getStoredRefreshToken();
+  const options = {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
+  };
+  return fetchJson("/auth/logout", options, { retryOnAuth: false });
+};
 export const getCurrentUser = () => fetchJson("/auth/me");
 export const sendOtp = (phoneNumber) => fetchJson("/auth/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber }) });
 export const verifyOtp = (phoneNumber, otp) => fetchJson("/auth/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber, otp }) });

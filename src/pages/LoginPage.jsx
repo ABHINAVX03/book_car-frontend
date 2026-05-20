@@ -51,6 +51,10 @@ export default function LoginPage({ toast }) {
       const res = await apiLogin(form);
       let user = res?.user || res?.data || res;
       let roles = normalizeRoles(user?.roles || []);
+      const authPayload = {
+        accessToken: res?.accessToken,
+        refreshToken: res?.refreshToken,
+      };
 
       if (!user || !user?.email) {
         try {
@@ -68,6 +72,7 @@ export default function LoginPage({ toast }) {
         email: user.email,
         phoneNumber: user.phoneNumber || getCachedPhoneNumber(user.email),
         roles: roles.length ? roles : ['RIDER'],
+        ...authPayload,
       });
       const successMessage = {
         title: `Welcome back, ${user.name || 'there'}`,

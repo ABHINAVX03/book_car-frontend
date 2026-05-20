@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { authExpiredEventName, clearStoredAuth } from "../utils/authToken";
+import { authExpiredEventName, clearStoredAuth, setStoredTokens } from "../utils/authToken";
 import { getCurrentUser, refreshAccessToken } from "../services/api";
 import { cachePhoneNumber, getCachedPhoneNumber } from "../utils/userContactCache";
 
@@ -81,6 +81,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = (userData) => {
+    if (userData?.accessToken || userData?.refreshToken) {
+      setStoredTokens(userData.accessToken, userData.refreshToken);
+    }
     setUser(normalizeUser(userData));
   };
 

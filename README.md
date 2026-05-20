@@ -153,8 +153,10 @@ Or use the Vite proxy (already configured in `vite.config.js`) — no CORS confi
 
 ## Build for Production
 
+If your backend runs on a different origin, set `VITE_API_URL` before building:
+
 ```bash
-npm run build
+VITE_API_URL="https://api.bookcar.example.com" npm run build
 ```
 
 Output goes to `dist/`. Deploy to any static host (Vercel, Netlify, nginx, etc.).

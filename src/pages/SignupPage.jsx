@@ -66,7 +66,7 @@ export default function SignupPage({ toast }) {
       const uid = user?.id ?? user?.userId ?? user?.data?.id;
       setUserId(uid);
 
-      await apiLogin({ email: form.email, password: form.password });
+      const loginResponse = await apiLogin({ email: form.email, password: form.password });
 
       if (mode === 'driver') {
         try {
@@ -81,6 +81,8 @@ export default function SignupPage({ toast }) {
             email: user?.email || form.email,
             phoneNumber: user?.phoneNumber || payload.phoneNumber,
             roles: ["DRIVER"],
+            accessToken: loginResponse?.accessToken,
+            refreshToken: loginResponse?.refreshToken,
           },
         );
         setStep(2);
@@ -110,6 +112,8 @@ export default function SignupPage({ toast }) {
           email: profileUser?.user?.email || profileUser?.email || user.email,
           phoneNumber: profileUser?.user?.phoneNumber || profileUser?.phoneNumber || user.phoneNumber || payload.phoneNumber,
           roles: roles,
+          accessToken: loginResponse?.accessToken,
+          refreshToken: loginResponse?.refreshToken,
         });
         toast.success({
           title: `Welcome to BookCar, ${profileUser?.name || user.name}!`,
@@ -189,13 +193,15 @@ export default function SignupPage({ toast }) {
       } catch {
         /* ignore */
       }
-      await apiLogin({ email: form.email, password: form.password });
+      const loginResponse = await apiLogin({ email: form.email, password: form.password });
 
       login({
         name: createdUser?.name || form.name || form.email,
         email: createdUser?.email || form.email,
         phoneNumber: createdUser?.phoneNumber || formatPhoneNumber(form.phoneNumber),
         roles: ['DRIVER'],
+        accessToken: loginResponse?.accessToken,
+        refreshToken: loginResponse?.refreshToken,
       });
       toast.success({
         title: "Driver profile activated",
