@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getDriverProfile, uploadDriverDoc, submitVerification, updateDriverProfile } from '../services/api';
 import { FiUploadCloud, FiCheckCircle, FiXCircle, FiInfo } from 'react-icons/fi';
 
 const DriverVerificationPage = ({ toast }) => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState({});
