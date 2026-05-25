@@ -2,10 +2,11 @@ const AUTH_EXPIRED_EVENT = "bookcar:auth-expired";
 const ACCESS_TOKEN_KEY = "bookcar-access-token";
 const REFRESH_TOKEN_KEY = "bookcar-refresh-token";
 
-const getSessionStorageValue = (key) => {
+const getStorageValue = (key) => {
   try {
     if (typeof window !== "undefined") {
-      return sessionStorage.getItem(key);
+      // Try sessionStorage first (session-scoped), then localStorage (persistent)
+      return sessionStorage.getItem(key) || localStorage.getItem(key);
     }
   } catch {
     // ignore storage errors in restrictive browsers
@@ -13,13 +14,16 @@ const getSessionStorageValue = (key) => {
   return null;
 };
 
-const setSessionStorageValue = (key, value) => {
+const setStorageValue = (key, value) => {
   try {
     if (typeof window !== "undefined") {
       if (value == null) {
         sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
       } else {
+        // Store in both sessionStorage and localStorage for redundancy
         sessionStorage.setItem(key, value);
+        localStorage.setItem(key, value);
       }
     }
   } catch {
@@ -27,16 +31,16 @@ const setSessionStorageValue = (key, value) => {
   }
 };
 
-export const getStoredToken = () => getSessionStorageValue(ACCESS_TOKEN_KEY);
-export const getStoredAccessToken = () => getSessionStorageValue(ACCESS_TOKEN_KEY);
-export const getStoredRefreshToken = () => getSessionStorageValue(REFRESH_TOKEN_KEY);
+export const getStoredToken = () => getStorageValue(ACCESS_TOKEN_KEY);
+export const getStoredAccessToken = () => getStorageValue(ACCESS_TOKEN_KEY);
+export const getStoredRefreshToken = () => getStorageValue(REFRESH_TOKEN_KEY);
 
 export const setStoredTokens = (accessToken, refreshToken) => {
   if (accessToken != null) {
-    setSessionStorageValue(ACCESS_TOKEN_KEY, accessToken);
+    setStorageValue(ACCESS_TOKEN_KEY, accessToken);
   }
   if (refreshToken != null) {
-    setSessionStorageValue(REFRESH_TOKEN_KEY, refreshToken);
+    setStorageValue(REFRESH_TOKEN_KEY, refreshToken);
   }
 };
 
@@ -45,6 +49,8 @@ export const isTokenExpired = () => !getStoredToken();
 export const clearStoredAuth = () => {
   try {
     localStorage.removeItem("user");
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem("user");
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
