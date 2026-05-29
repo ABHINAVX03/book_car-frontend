@@ -1,4 +1,5 @@
 import { expireAuth, getStoredAccessToken, getStoredRefreshToken, setStoredTokens, clearStoredAuth } from "../utils/authToken";
+import { toDialablePhoneNumber } from "../utils/phone";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
@@ -146,7 +147,12 @@ const tryWalletMutationVariants = async (variants = []) => {
   throw lastError || new Error("Wallet action failed");
 };
 
-export const signup = (data) => fetchJson("/auth/signup", { method: "POST", body: JSON.stringify(data) });
+const withDialablePhoneNumber = (data = {}) => ({
+  ...data,
+  phoneNumber: toDialablePhoneNumber(data.phoneNumber),
+});
+
+export const signup = (data) => fetchJson("/auth/signup", { method: "POST", body: JSON.stringify(withDialablePhoneNumber(data)) });
 export const login = (data) => fetchJson("/auth/login", { method: "POST", body: JSON.stringify(data) });
 export const logoutSession = () => {
   const refreshToken = getStoredRefreshToken();
@@ -158,13 +164,13 @@ export const logoutSession = () => {
   return fetchJson("/auth/logout", options, { retryOnAuth: false });
 };
 export const getCurrentUser = () => fetchJson("/auth/me");
-export const sendOtp = (phoneNumber) => fetchJson("/auth/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber }) });
-export const verifyOtp = (phoneNumber, otp) => fetchJson("/auth/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber, otp }) });
+export const sendOtp = (phoneNumber) => fetchJson("/auth/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber) }) });
+export const verifyOtp = (phoneNumber, otp) => fetchJson("/auth/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber), otp }) });
 
 export const onboardDriver = (userId, vehicleId, vehicleType = "MINI", phoneNumber) =>
   fetchJson(`/auth/onBoardNewDriver/${userId}`, {
     method: "POST",
-    body: JSON.stringify({ vehicleId, vehicleType, phoneNumber }),
+    body: JSON.stringify({ vehicleId, vehicleType, phoneNumber: toDialablePhoneNumber(phoneNumber) }),
   });
 
 export const estimateRideFare = (data) => fetchJson("/riders/estimateFare", { method: "POST", body: JSON.stringify(data) });
