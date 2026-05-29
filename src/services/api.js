@@ -164,8 +164,8 @@ export const logoutSession = () => {
   return fetchJson("/auth/logout", options, { retryOnAuth: false });
 };
 export const getCurrentUser = () => fetchJson("/auth/me");
-export const sendOtp = (phoneNumber) => fetchJson("/auth/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber) }) });
-export const verifyOtp = (phoneNumber, otp) => fetchJson("/auth/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber), otp }) });
+export const sendOtp = (phoneNumber) => fetchJson("/send-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber) }) });
+export const verifyOtp = (phoneNumber, otp) => fetchJson("/verify-otp", { method: "POST", body: JSON.stringify({ phoneNumber: toDialablePhoneNumber(phoneNumber), otp }) });
 
 export const onboardDriver = (userId, vehicleId, vehicleType = "MINI", phoneNumber) =>
   fetchJson(`/auth/onBoardNewDriver/${userId}`, {
