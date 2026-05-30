@@ -214,8 +214,26 @@ export const unblockDriver = (id) => fetchJson(`/admin/drivers/${id}/unblock`, {
 export const createRidePaymentOrder = (rideId) => fetchJson(`/riders/rides/${rideId}/payment-order`, { method: "POST" });
 export const verifyRidePayment = (rideId, data) => fetchJson(`/riders/rides/${rideId}/verify-ride-payment`, { method: "POST", body: JSON.stringify(data) });
 
-export const uploadDriverDoc = (docType, file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-  return fetchJson(`/drivers/upload/${docType}`, { method: "POST", body: formData });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const uploadDriverDoc = async (docType, file, { maxAttempts = 3 } = {}) => {
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      return await fetchJson(`/drivers/upload/${docType}`, { method: "POST", body: formData });
+    } catch (error) {
+      lastError = error;
+      const retryable =
+        !error?.status || error.status >= 500 || error.status === 408 || error.status === 429;
+      if (!retryable || attempt >= maxAttempts) break;
+      await sleep(800 * attempt);
+    }
+  }
+  throw lastError || new Error("Upload failed");
 };
+
+/** Dev-only: auto-approve driver (requires app.dev.endpoints-enabled on backend) */
+export const autoApproveDriverDev = (driverId) =>
+  fetchJson(`/dev/drivers/${driverId}/auto-approve`, { method: "POST" });

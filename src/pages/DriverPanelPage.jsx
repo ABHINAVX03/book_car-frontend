@@ -243,11 +243,21 @@ export default function DriverPanelPage({ toast }) {
   const refreshProfile = async ({ silent = false } = {}) => {
     try {
       const data = await getDriverProfile();
+      const wasVerified = Boolean(driverProfile?.vehicleVerified);
       setDriverProfile(data);
-      setIsVerified(data.vehicleVerified);
-      // Only auto-update availability if not currently loading it
+      setIsVerified(Boolean(data.vehicleVerified));
       if (!availabilityLoading) {
         setIsAvailable(data.available);
+      }
+      if (!silent && data.vehicleVerified && !wasVerified) {
+        toast.success("You are verified! Go online to start accepting rides.");
+      }
+      if (
+        !silent &&
+        data.verificationStatus === "REJECTED" &&
+        driverProfile?.verificationStatus !== "REJECTED"
+      ) {
+        toast.error(data.rejectionReason || "Verification was rejected. Please update your documents.");
       }
     } catch (err) {
       if (!silent) toast.error("Could not refresh profile data");
@@ -683,9 +693,11 @@ export default function DriverPanelPage({ toast }) {
                   <div style={{ flex: 1 }}>
                      <h3 style={{ color: 'var(--red)', marginBottom: 4 }}>Vehicle Verification Required</h3>
                      <p style={{ fontSize: '0.88rem', color: 'var(--muted)' }}>
-                        {driverProfile?.verificationStatus === 'REJECTED' 
-                           ? `Rejected: ${driverProfile.rejectionReason}`
-                           : 'Your documents are being reviewed. You cannot accept rides yet.'}
+                        {driverProfile?.verificationStatus === 'REJECTED'
+                           ? `Rejected: ${driverProfile.rejectionReason || 'Please re-upload valid documents.'}`
+                           : driverProfile?.verificationSubmitted
+                             ? 'Your documents are being reviewed. You cannot accept rides yet.'
+                             : 'Upload and submit your vehicle documents to get verified.'}
                      </p>
                   </div>
                   <button className="btn btn-dark btn-sm" onClick={() => navigate('/driver/verify')}>
