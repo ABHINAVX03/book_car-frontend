@@ -10,30 +10,43 @@ const AdminVerificationDashboard = ({ toast }) => {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
     const [page, setPage] = useState(0);
+    const [pollingEnabled, setPollingEnabled] = useState(true);
+    const loadErrorCountRef = React.useRef(0);
 
     const loadDrivers = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         try {
             const data = await getAllDriversByStatus(activeTab, page);
             setDrivers(data.content || []);
+            loadErrorCountRef.current = 0;
+            setPollingEnabled(true);
         } catch (err) {
-            if (!silent) toast.error("Failed to load drivers");
+            loadErrorCountRef.current += 1;
+            if (loadErrorCountRef.current >= 2) {
+                setPollingEnabled(false);
+            }
+            if (!silent) {
+                toast.error(err.message || "Failed to load drivers");
+            }
         } finally {
             if (!silent) setLoading(false);
         }
     }, [activeTab, page, toast]);
 
     useEffect(() => {
+        loadErrorCountRef.current = 0;
+        setPollingEnabled(true);
         loadDrivers();
     }, [loadDrivers]);
 
-    // Polling for real-time updates (every 15 seconds)
+    // Polling for real-time updates (stops after repeated failures)
     useEffect(() => {
+        if (!pollingEnabled) return undefined;
         const interval = setInterval(() => {
             loadDrivers(true);
         }, 15000);
         return () => clearInterval(interval);
-    }, [loadDrivers]);
+    }, [loadDrivers, pollingEnabled]);
 
     const handleApprove = async (id) => {
         if (!window.confirm("Approve this driver? They will be notified and can go online.")) return;
