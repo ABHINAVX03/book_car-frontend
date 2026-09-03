@@ -20,11 +20,12 @@ export default function DashboardPage({ toast }) {
     const load = async () => {
       try {
         const [prof, rides] = await Promise.all([
-          isDriver ? getDriverProfile() : getRiderProfile(),
-          isDriver ? getDriverRides(0, 5) : getRiderRides(0, 5),
+          isDriver ? getDriverProfile().catch(() => null) : getRiderProfile().catch(() => null),
+          isDriver ? getDriverRides(0, 5).catch(() => []) : getRiderRides(0, 5).catch(() => []),
         ]);
         setProfile(prof);
-        setRecentRides(rides?.content || []);
+        const list = Array.isArray(rides) ? rides : (Array.isArray(rides?.content) ? rides.content : []);
+        setRecentRides(list);
       } catch (e) {
         // Demo mode — just show the user info
       } finally {
@@ -54,7 +55,7 @@ export default function DashboardPage({ toast }) {
             {user?.name || 'Welcome back'} 👋
           </h1>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '0.75rem' }}>
-            {user?.roles?.map(r => (
+            {Array.isArray(user?.roles) && user.roles.map(r => (
               <span key={r} className="badge badge-yellow">{r}</span>
             ))}
           </div>
@@ -98,13 +99,13 @@ export default function DashboardPage({ toast }) {
                   <>
                     {isDriver && (
                       <>
-                        <StatCard label="Rating" value={profile?.rating?.toFixed(1) || '—'} icon="⭐" />
+                        <StatCard label="Rating" value={Number(profile?.rating) ? Number(profile.rating).toFixed(1) : '—'} icon="⭐" />
                         <StatCard label="Vehicle" value={profile?.vehicleId || '—'} icon="🚘" />
                         <StatCard label="Status" value={profile?.available ? 'Available' : 'Busy'} icon="🟢" />
                       </>
                     )}
                     {isRider && (
-                      <StatCard label="Rating" value={profile?.rating?.toFixed(1) || '—'} icon="⭐" />
+                      <StatCard label="Rating" value={Number(profile?.rating) ? Number(profile.rating).toFixed(1) : '—'} icon="⭐" />
                     )}
                   </>
                 )}
@@ -128,8 +129,8 @@ export default function DashboardPage({ toast }) {
                     <RideSummaryCardSkeleton />
                   </>
                 ) : (
-                  recentRides.slice(0, 3).map(ride => (
-                    <RideSummaryCard key={ride.id} ride={ride} />
+                  (Array.isArray(recentRides) ? recentRides : []).slice(0, 3).map(ride => (
+                    ride ? <RideSummaryCard key={ride?.id || Math.random()} ride={ride} /> : null
                   ))
                 )}
               </div>

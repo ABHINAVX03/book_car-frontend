@@ -24,10 +24,15 @@ const normalizeRoles = (roles) => {
 
 const normalizeUser = (userData) => {
   if (!userData) return null;
+  const raw = userData.user ? userData.user : userData;
+  const roles = normalizeRoles(raw.roles || userData.roles);
   const normalizedUser = {
-    ...userData,
-    phoneNumber: userData?.phoneNumber || getCachedPhoneNumber(userData?.email),
-    roles: normalizeRoles(userData?.roles),
+    ...raw,
+    id: raw.id || userData.id,
+    name: raw.name || userData.name || "",
+    email: raw.email || userData.email || "",
+    phoneNumber: raw?.phoneNumber || userData?.phoneNumber || getCachedPhoneNumber(raw?.email || userData?.email),
+    roles,
   };
   if (normalizedUser?.email && normalizedUser?.phoneNumber) {
     cachePhoneNumber(normalizedUser.email, normalizedUser.phoneNumber);
@@ -94,7 +99,8 @@ export function AuthProvider({ children }) {
     if (userData?.accessToken || userData?.refreshToken) {
       setStoredTokens(userData.accessToken, userData.refreshToken);
     }
-    setUser(normalizeUser(userData));
+    const userToSet = userData?.user || userData;
+    setUser(normalizeUser(userToSet));
   };
 
   const logout = () => {

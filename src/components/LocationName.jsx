@@ -61,7 +61,7 @@ export default function LocationName({ coords, fallbackText }) {
       return;
     }
 
-    if (!coords || coords.length < 2) {
+    if (!coords || !Array.isArray(coords) || coords.length < 2) {
       setAddress("—");
       setLoading(false);
       return;
