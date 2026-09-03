@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { authExpiredEventName, clearStoredAuth, setStoredTokens } from "../utils/authToken";
+import { authExpiredEventName, clearStoredAuth, setStoredTokens, getStoredAccessToken, getStoredRefreshToken } from "../utils/authToken";
 import { getCurrentUser, refreshAccessToken } from "../services/api";
 import { cachePhoneNumber, getCachedPhoneNumber } from "../utils/userContactCache";
 
@@ -43,6 +43,16 @@ export function AuthProvider({ children }) {
     let cancelled = false;
 
     const restoreSession = async () => {
+      // If there are no tokens in storage, user is a guest — resolve immediately with zero network delay
+      const hasToken = getStoredAccessToken() || getStoredRefreshToken();
+      if (!hasToken) {
+        if (!cancelled) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         const profile = await getCurrentUser();
         if (!cancelled) setUser(normalizeUser(profile));
