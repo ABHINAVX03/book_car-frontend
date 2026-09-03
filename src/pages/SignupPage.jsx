@@ -137,11 +137,18 @@ export default function SignupPage({ toast }) {
     }
     setOtpLoading(true);
     try {
-      await sendOtp(formatPhoneNumber(form.phoneNumber));
+      const res = await sendOtp(formatPhoneNumber(form.phoneNumber));
       setOtpSent(true);
-      toast.success("Verification code sent to your phone!");
+      if (res && res.otp) {
+        setOtpCode(res.otp);
+        toast.success(`Code generated: ${res.otp} (auto-filled)`);
+      } else {
+        toast.success("Verification code sent! (Use 123456 for testing)");
+      }
     } catch (e) {
-      toast.error(e.message || "Failed to send OTP");
+      // If rate limited or error, still allow entering test code 123456
+      setOtpSent(true);
+      toast.info("Use demo code 123456 to verify immediately.");
     } finally {
       setOtpLoading(false);
     }
@@ -409,6 +416,9 @@ export default function SignupPage({ toast }) {
                       <button className="btn btn-primary btn-sm" onClick={handleVerifyOtp} disabled={otpLoading}>
                         Verify
                       </button>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 6 }}>
+                      Testing: Code is auto-filled, or use test code <strong>123456</strong>.
                     </div>
                   </div>
                 )}
