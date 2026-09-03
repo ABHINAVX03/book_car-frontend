@@ -25,9 +25,10 @@ export default class ErrorBoundary extends Component {
       return (
         <div className="page-content" role="alert" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card center" style={{ maxWidth: 460, padding: '2rem' }}>
-            <h3>Something went wrong</h3>
-            <p className="hint-text" style={{ marginBottom: '1rem', color: 'var(--muted)' }}>
-              {this.state.error?.message || "Refresh the page and try again. Your session is still preserved."}
+            <div style={{ fontSize: "3rem", marginBottom: 16 }}>⚠️</div>
+            <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Something went wrong</h3>
+            <p className="hint-text" style={{ marginBottom: '1.5rem', color: 'var(--muted)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+              {this.state.error?.message || "An unexpected error occurred. Your session is preserved."}
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button

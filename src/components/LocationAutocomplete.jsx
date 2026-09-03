@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 
+const searchCache = new Map();
+
 export default function LocationAutocomplete({ label, placeholder, value, onSelect, isSkeleton }) {
   const [query, setQuery] = useState(value || "");
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef(null);
 
+  // Sync value prop to internal query if it changes externally
   useEffect(() => {
     if (value && value !== query) {
       setQuery(value);
     }
-  }, [value]);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -29,8 +33,13 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
       return;
     }
 
-    // Only search if the dropdown is open (implies the user is typing, not just selected)
     if (!showDropdown) return;
+
+    const cached = searchCache.get(query);
+    if (cached) {
+      setSuggestions(cached);
+      return;
+    }
 
     const controller = new AbortController();
     const delayDebounceFn = setTimeout(async () => {
@@ -49,7 +58,9 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
           }
         );
         const data = await res.json();
-        setSuggestions(data || []);
+        const results = data || [];
+        setSuggestions(results);
+        searchCache.set(query, results);
       } catch (error) {
         if (error.name !== "AbortError") {
           console.error(error);
@@ -65,14 +76,37 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
     };
   }, [query, showDropdown]);
 
+  // Reset active index when suggestions change
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [suggestions]);
+
   const handleSelect = (item) => {
     setQuery(item.display_name);
     setShowDropdown(false);
+    setActiveIndex(-1);
     onSelect({
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon),
       address: item.display_name,
     });
+  };
+
+  const handleKeyDown = (e) => {
+    if (!showDropdown || suggestions.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : 0));
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelect(suggestions[activeIndex]);
+    } else if (e.key === "Escape") {
+      setShowDropdown(false);
+    }
   };
 
   return (
@@ -86,12 +120,12 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
         onChange={(e) => {
           setQuery(e.target.value);
           setShowDropdown(true);
-          // If the user modifies the text, they unselect the previous location
           onSelect(null);
         }}
         onFocus={() => {
           if (query.length >= 3) setShowDropdown(true);
         }}
+        onKeyDown={handleKeyDown}
       />
       {showDropdown && (suggestions.length > 0 || loading) && (
         <div
@@ -117,6 +151,7 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
             const parts = item.display_name.split(',');
             const main = parts[0];
             const desc = parts.slice(1).join(',').trim();
+            const isActive = idx === activeIndex;
             return (
               <div
                 key={item.place_id || idx}
@@ -125,7 +160,9 @@ export default function LocationAutocomplete({ label, placeholder, value, onSele
                   padding: "10px 12px",
                   cursor: "pointer",
                   borderBottom: idx === suggestions.length - 1 ? "none" : "1px solid var(--surface-2)",
+                  backgroundColor: isActive ? "var(--surface-2)" : "transparent",
                 }}
+                onMouseEnter={() => setActiveIndex(idx)}
                 onClick={() => handleSelect(item)}
               >
                 <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text-primary)", display: 'flex', alignItems: 'center', gap: 6 }}>

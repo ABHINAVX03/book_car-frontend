@@ -19,6 +19,7 @@ const SupportPage = lazy(() => import("./pages/SupportPage"));
 const AdminRevenuePage = lazy(() => import("./pages/AdminRevenuePage"));
 const DriverVerificationPage = lazy(() => import("./pages/DriverVerificationPage"));
 const AdminVerificationDashboard = lazy(() => import("./pages/AdminVerificationDashboard"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 const PENDING_DRIVER_VEHICLE_KEY = "bookcar-pending-driver-vehicle";
 
@@ -114,7 +115,7 @@ function AppInner() {
             <Route path="admin/verify" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminVerificationDashboard toast={toast} /></ProtectedRoute>} />
             <Route path="driver/verify" element={<ProtectedRoute allowedRoles={["DRIVER"]}><DriverVerificationPage toast={toast} /></ProtectedRoute>} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </RouteAwareBoundary>
