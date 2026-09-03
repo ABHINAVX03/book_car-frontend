@@ -56,6 +56,20 @@ export function getFriendlyAuthError(error, fallbackTitle = "We couldn't complet
     };
   }
 
+  if (
+    normalized.includes("aborted") ||
+    normalized.includes("timeout") ||
+    normalized.includes("timed out") ||
+    normalized.includes("abort") ||
+    error?.name === "AbortError"
+  ) {
+    return {
+      title: "Server is waking up",
+      description: "Our backend is starting up from sleep (free tier). Please wait a few moments and try again.",
+      type: "error",
+    };
+  }
+
   if (normalized.includes("failed to fetch") || normalized.includes("networkerror") || normalized.includes("network request failed")) {
     return {
       title: "We couldn't reach the server",

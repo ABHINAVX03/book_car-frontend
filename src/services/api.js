@@ -2,7 +2,7 @@ import { expireAuth, getStoredAccessToken, getStoredRefreshToken, setStoredToken
 import { toDialablePhoneNumber } from "../utils/phone";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
-const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 60000);
 
 let refreshPromise = null;
 
@@ -16,12 +16,18 @@ const clearTokens = () => {
 
 const withTimeout = (options = {}) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => {
+    try {
+      controller.abort(new Error("Request timed out. The server may still be spinning up from sleep."));
+    } catch {
+      controller.abort();
+    }
+  }, API_TIMEOUT_MS);
   const externalSignal = options.signal;
 
   if (externalSignal) {
-    if (externalSignal.aborted) controller.abort();
-    externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    if (externalSignal.aborted) controller.abort(externalSignal.reason);
+    externalSignal.addEventListener("abort", () => controller.abort(externalSignal.reason), { once: true });
   }
 
   return {
