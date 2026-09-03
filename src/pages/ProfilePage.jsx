@@ -23,6 +23,7 @@ import { formatPhoneNumber } from "../utils/phone";
 import { getWalletBalance, normalizeWallet } from "../utils/wallet";
 import { notifyRiderWalletUpdated } from "../utils/walletEvents";
 import { cachePhoneNumber, getCachedPhoneNumber } from "../utils/userContactCache";
+import { PLATFORM_COMMISSION_RATE } from "../constants/commission";
 
 const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 
@@ -125,7 +126,7 @@ export default function ProfilePage({ toast }) {
         if (ridesResponse && ridesResponse.content) {
             const cashRides = ridesResponse.content.filter(r => r.paymentMethod === 'CASH' && r.rideStatus === 'ENDED');
             cashRides.forEach(ride => {
-                const commission = 0.15;
+                const commission = PLATFORM_COMMISSION_RATE;
                 const driverEarnings = ride.fare ? ride.fare * (1 - commission) : 0;
                 tx.push({
                    id: `cash_${ride.id}`,
