@@ -160,6 +160,7 @@ const withDialablePhoneNumber = (data = {}) => ({
 
 export const signup = (data) => fetchJson("/auth/signup", { method: "POST", body: JSON.stringify(withDialablePhoneNumber(data)) });
 export const login = (data) => fetchJson("/auth/login", { method: "POST", body: JSON.stringify(data) });
+export const resetPassword = (data) => fetchJson("/auth/reset-password", { method: "POST", body: JSON.stringify(data) });
 export const logoutSession = () => {
   const refreshToken = getStoredRefreshToken();
   const options = {
